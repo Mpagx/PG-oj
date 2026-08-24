@@ -5,6 +5,8 @@
     "strict": true,
     "jsx": "preserve",
     "moduleResolution": "node",
+    "allowJs": true,
+    "noImplicitAny": false,
     "skipLibCheck": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
@@ -31,10 +33,12 @@
     "src/**/*.ts",
     "src/**/*.tsx",
     "src/**/*.vue",
+    "src/generated/**/*.ts",
     "tests/**/*.ts",
     "tests/**/*.tsx"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "src/generated"
   ]
 }
