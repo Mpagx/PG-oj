@@ -9,6 +9,7 @@ import UserLoginView from "@/views/user/UserLoginView.vue";
 import UserRegisterView from "@/views/user/UserRegisterView.vue";
 import AddQuestionView from "@/views/question/AddQuestionView.vue";
 import ManageQuestionView from "@/views/question/ManageQuestionView.vue";
+import QuestionsView from "@/views/question/QuestionsView.vue";
 
 export const routes: Array<RouteRecordRaw> = [
   {
@@ -30,6 +31,11 @@ export const routes: Array<RouteRecordRaw> = [
     meta: {
       hideInMenu: true,
     },
+  },
+  {
+    path: "/questions",
+    name: "浏览题目",
+    component: QuestionsView,
   },
   {
     path: "/add/question",
@@ -57,17 +63,18 @@ export const routes: Array<RouteRecordRaw> = [
   },
   {
     path: "/",
-    name: "浏览题目",
-    component: ExampleView,
+    name: "主页",
+    component: QuestionsView,
   },
-  {
-    path: "/hide",
-    name: "隐藏页面",
-    component: ExampleView,
-    meta: {
-      hideInMenu: true,
-    },
-  },
+
+  // {
+  //   path: "/hide",
+  //   name: "隐藏页面",
+  //   component: ExampleView,
+  //   meta: {
+  //     hideInMenu: true,
+  //   },
+  // },
   {
     path: "/noAuth",
     name: "无权限",

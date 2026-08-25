@@ -7,9 +7,10 @@
       :pagination="{
         showTotal: true,
         pageSize: searchParams.pageSize,
-        current: searchParams.pageNum,
+        current: searchParams.current,
         total,
       }"
+      @page-change="onPageChange"
     >
       <template #optional="{ record }">
         <a-space>
@@ -24,13 +25,15 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 import {
-  Page_Question,
+  Page_Question_,
   Question,
   QuestionControllerService,
 } from "@/generated";
+import { watchEffect } from "vue";
 import message from "@arco-design/web-vue/es/message";
 import * as querystring from "querystring";
 import { useRouter } from "vue-router";
+import { reactive, watch } from "vue";
 
 const show = ref(true);
 const tableRef = ref();
@@ -39,9 +42,15 @@ const dataList = ref([]);
 const total = ref(0);
 const searchParams = ref({
   pageSize: 10,
-  pageNum: 1,
+  current: 1,
 });
-
+watch(
+  () => ({ ...searchParams }),
+  () => {
+    loadData();
+  },
+  { deep: true }
+);
 const loadData = async () => {
   const res = await QuestionControllerService.listQuestionByPageUsingPost(
     searchParams.value
@@ -53,6 +62,12 @@ const loadData = async () => {
     message.error("加载失败，" + res.message);
   }
 };
+/**
+ * 监听 searchParams 变量，改变时触发页面的重新加载
+ */
+watchEffect(() => {
+  loadData();
+});
 
 /**
  * 页面加载时，请求数据
@@ -113,7 +128,12 @@ const columns = [
     slotName: "optional",
   },
 ];
-
+const onPageChange = (page: number) => {
+  searchParams.value = {
+    ...searchParams.value,
+    current: page,
+  };
+};
 const doDelete = async (question: Question) => {
   const res = await QuestionControllerService.deleteQuestionUsingPost({
     id: question.id,

@@ -27,9 +27,8 @@ const doInit = () => {
   console.log("hello，欢迎来到我的项目");
 };
 
-onMounted(() => {
-  //解决登录状态丢失问题
-  store.dispatch("user/getLoginUser");
+onMounted(async () => {
+  await store.dispatch("user/getLoginUser");
   doInit();
 });
 </script>

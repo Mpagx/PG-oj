@@ -30,14 +30,10 @@ export default {
 
   getters: {},
   actions: {
-    async getLoginUser({ commit, state }) {
+    async getLoginUser({ commit }) {
       const res = await UserControllerService.getLoginUserUsingGet();
-
-      console.log("【前端】getLoginUser 接口返回:", res);
-
       if (res.code === 0 && res.data) {
         commit("updateUser", res.data);
-        console.log("【前端】commit updateUser:", res.data);
       } else {
         commit("updateUser", {
           userAccount: "未登录",
@@ -67,6 +63,7 @@ export default {
   mutations: {
     updateUser(state, payload) {
       state.loginUser = payload;
+      localStorage.setItem("loginUser", JSON.stringify(payload));
     },
   },
 } as StoreOptions<any>;
