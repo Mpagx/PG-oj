@@ -1,6 +1,5 @@
 package com.poj.poj.service.impl;
 
-import cn.hutool.core.collection.CollUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -85,33 +84,35 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
      */
     @Override
     public QueryWrapper<Question> getQueryWrapper(QuestionQueryRequest questionQueryRequest) {
+        System.out.println("✅ getQueryWrapper 被调用了");
+        System.out.println("tags = " + questionQueryRequest.getTags());
         QueryWrapper<Question> queryWrapper = new QueryWrapper<>();
         if (questionQueryRequest == null) {
             return queryWrapper;
         }
+
         Long id = questionQueryRequest.getId();
         String title = questionQueryRequest.getTitle();
-        String content = questionQueryRequest.getContent();
         List<String> tags = questionQueryRequest.getTags();
-        String answer = questionQueryRequest.getAnswer();
         Long userId = questionQueryRequest.getUserId();
-        String sortField = questionQueryRequest.getSortField();
-        String sortOrder = questionQueryRequest.getSortOrder();
 
-        // 拼接查询条件
+        // 精确查询
+        queryWrapper.eq(id != null, "id", id);
+        queryWrapper.eq(userId != null, "userId", userId);
+
+        // 模糊查询
         queryWrapper.like(StringUtils.isNotBlank(title), "title", title);
-        queryWrapper.like(StringUtils.isNotBlank(content), "content", content);
-        queryWrapper.like(StringUtils.isNotBlank(answer), "answer", answer);
-        if (CollectionUtils.isNotEmpty(tags)) {
+
+        // ✅ 标签查询（关键）
+        if (tags != null && !tags.isEmpty()) {
             for (String tag : tags) {
-                queryWrapper.like("tags", "\"" + tag + "\"");
+                queryWrapper.like("tags", tag);
             }
         }
-        queryWrapper.eq(ObjectUtils.isNotEmpty(id), "id", id);
-        queryWrapper.eq(ObjectUtils.isNotEmpty(userId), "userId", userId);
-        queryWrapper.eq("isDelete", false);
-        queryWrapper.orderBy(SqlUtils.validSortField(sortField), sortOrder.equals(CommonConstant.SORT_ORDER_ASC),
-                sortField);
+
+        // 逻辑删除
+        queryWrapper.eq("isDelete", 0);
+
         return queryWrapper;
     }
 
@@ -155,7 +156,28 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
         return questionVOPage;
     }
 
+    @Override
+    public Page<Question> listQuestionByPage(QuestionQueryRequest request) {
+        QueryWrapper<Question> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("isDelete", 0);
 
+        // 标题模糊搜索
+        if (StringUtils.isNotBlank(request.getTitle())) {
+            queryWrapper.like("title", request.getTitle());
+        }
+
+        // 标签搜索（关键）
+        if (request.getTags() != null && !request.getTags().isEmpty()) {
+            for (String tag : request.getTags()) {
+                queryWrapper.like("tags", tag);
+            }
+        }
+
+        return this.page(
+                new Page<>(request.getCurrent(), request.getPageSize()),
+                queryWrapper
+        );
+    }
 }
 
 
