@@ -52,9 +52,9 @@ export const routes: Array<RouteRecordRaw> = [
     path: "/update/question",
     name: "更新题目",
     component: AddQuestionView,
-    // meta: {
-    //   access: ACCESS_ENUM.ADMIN,
-    // },
+    meta: {
+      hideInMenu: true,
+    },
   },
   {
     path: "/manage/question/",
@@ -82,6 +82,9 @@ export const routes: Array<RouteRecordRaw> = [
     path: "/noAuth",
     name: "无权限",
     component: NoAuthView,
+    meta: {
+      hideInMenu: true,
+    },
   },
   {
     path: "/admin",

@@ -1,0 +1,20 @@
+# IDE and OS files
+.idea/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Java build/runtime files
+**/target/
+**/*.class
+**/tmpCode/
+*.log
+
+# Frontend dependencies and build output
+**/node_modules/
+**/dist/
+
+# Local environment files
+.env
+.env.*
+!.env.example

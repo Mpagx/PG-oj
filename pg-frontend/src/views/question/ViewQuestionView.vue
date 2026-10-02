@@ -49,10 +49,13 @@
               placeholder="选择编程语言"
               @change="handleLanguageChange"
             >
-              <a-option>java</a-option>
-              <a-option>cpp</a-option>
-              <a-option>go</a-option>
-              <a-option>html</a-option>
+              <a-option
+                v-for="language in QUESTION_SUBMIT_LANGUAGES"
+                :key="language.value"
+                :value="language.value"
+              >
+                {{ language.label }}
+              </a-option>
             </a-select>
           </a-form-item>
         </a-form>
@@ -61,7 +64,7 @@
           :language="form.language"
           :handle-change="changeCode"
         />
-        <a-divider size="0" />
+        <a-divider :size="0" />
         <a-button type="primary" style="min-width: 200px" @click="doSubmit">
           提交代码
         </a-button>
@@ -83,6 +86,7 @@ import message from "@arco-design/web-vue/es/message";
 import CodeEditor from "@/components/CodeEditor.vue";
 import MdViewer from "@/components/MdViewer.vue";
 import { detectCodeLanguage } from "@/utils/codeLanguage";
+import { QUESTION_SUBMIT_LANGUAGES } from "@/constants/questionSubmitLanguage";
 
 interface Props {
   id: string;
@@ -153,8 +157,7 @@ const handleLanguageChange = (language: string) => {
 
 <style scoped>
 #viewQuestionView {
-  max-width: 1400px;
-  margin: 0 auto;
+  width: 100%;
 }
 
 #viewQuestionView .arco-space-horizontal .arco-space-item {

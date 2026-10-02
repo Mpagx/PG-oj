@@ -1,24 +1,30 @@
 <template>
   <div id="manageQuestionView">
-    <a-table
-      :ref="tableRef"
-      :columns="columns"
-      :data="dataList"
-      :pagination="{
-        showTotal: true,
-        pageSize: searchParams.pageSize,
-        current: searchParams.current,
-        total,
-      }"
-      @page-change="onPageChange"
-    >
-      <template #optional="{ record }">
-        <a-space>
-          <a-button type="primary" @click="doUpdate(record)"> 修改</a-button>
-          <a-button status="danger" @click="doDelete(record)">删除</a-button>
-        </a-space>
-      </template>
-    </a-table>
+    <a-card :bordered="false" class="page-card">
+      <template #title>题目管理</template>
+      <a-table
+        :ref="tableRef"
+        :columns="columns"
+        :data="dataList"
+        :pagination="{
+          showTotal: true,
+          pageSize: searchParams.pageSize,
+          current: searchParams.current,
+          total,
+        }"
+        @page-change="onPageChange"
+      >
+        <template #createTime="{ record }">
+          {{ formatTime(record.createTime) }}
+        </template>
+        <template #optional="{ record }">
+          <a-space>
+            <a-button type="primary" @click="doUpdate(record)"> 修改</a-button>
+            <a-button status="danger" @click="doDelete(record)">删除</a-button>
+          </a-space>
+        </template>
+      </a-table>
+    </a-card>
   </div>
 </template>
 
@@ -34,6 +40,7 @@ import message from "@arco-design/web-vue/es/message";
 import * as querystring from "querystring";
 import { useRouter } from "vue-router";
 import { reactive, watch } from "vue";
+import moment from "moment";
 
 const show = ref(true);
 const tableRef = ref();
@@ -51,6 +58,11 @@ watch(
   },
   { deep: true }
 );
+// 3. 定义时间格式化函数，并增加空值保护
+const formatTime = (time: any) => {
+  if (!time) return " ";
+  return moment(time).format("YYYY-MM-DD");
+};
 const loadData = async () => {
   const res = await QuestionControllerService.listQuestionByPageUsingPost(
     searchParams.value
@@ -121,7 +133,7 @@ const columns = [
   },
   {
     title: "创建时间",
-    dataIndex: "createTime",
+    slotName: "createTime",
   },
   {
     title: "操作",
@@ -160,5 +172,6 @@ const doUpdate = (question: Question) => {
 
 <style scoped>
 #manageQuestionView {
+  width: 100%;
 }
 </style>

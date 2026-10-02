@@ -1,58 +1,64 @@
 <template>
   <div id="questionsView">
-    <a-form :model="searchParams" layout="inline">
-      <a-form-item field="title" label="名称" style="min-width: 240px">
-        <a-input v-model="searchParams.title" placeholder="请输入名称" />
-      </a-form-item>
-      <a-form-item field="tags" label="标签" style="min-width: 240px">
-        <a-input-tag
-          v-model="searchParams.tags"
-          placeholder="输入标签后回车或失焦"
-          @blur="handleBlur"
-        />
-      </a-form-item>
-      <a-form-item>
-        <a-button type="primary" @click="doSubmit">提交</a-button>
-      </a-form-item>
-    </a-form>
-    <a-divider size="0" />
-    <a-table
-      :ref="tableRef"
-      :columns="columns"
-      :data="dataList"
-      :pagination="{
-        showTotal: true,
-        pageSize: searchParams.pageSize,
-        current: searchParams.current,
-        total,
-      }"
-      @page-change="onPageChange"
-    >
-      <template #tags="{ record }">
-        <a-space wrap>
-          <a-tag v-for="(tag, index) of record.tags" :key="index" color="green"
-            >{{ tag }}
-          </a-tag>
-        </a-space>
-      </template>
-      <template #acceptedRate="{ record }">
-        {{
-          `${
-            record.submitNum ? record.acceptedNum / record.submitNum : "0"
-          }% (record.acceptedNum/{record.submitNum})`
-        }}
-      </template>
-      <template #createTime="{ record }">
-        {{ moment(record.createTime).format("YYYY-MM-DD") }}
-      </template>
-      <template #optional="{ record }">
-        <a-space>
-          <a-button type="primary" @click="toQuestionPage(record)">
-            做题</a-button
-          >
-        </a-space>
-      </template>
-    </a-table>
+    <a-card :bordered="false" class="page-card">
+      <template #title>题目列表</template>
+      <a-form :model="searchParams" layout="inline">
+        <a-form-item field="title" label="名称" style="min-width: 240px">
+          <a-input v-model="searchParams.title" placeholder="请输入名称" />
+        </a-form-item>
+        <a-form-item field="tags" label="标签" style="min-width: 240px">
+          <a-input-tag
+            v-model="searchParams.tags"
+            placeholder="输入标签后回车或失焦"
+            @blur="handleBlur"
+          />
+        </a-form-item>
+        <a-form-item>
+          <a-button type="primary" @click="doSubmit">提交</a-button>
+        </a-form-item>
+      </a-form>
+      <a-divider :size="0" />
+      <a-table
+        :ref="tableRef"
+        :columns="columns"
+        :data="dataList"
+        :pagination="{
+          showTotal: true,
+          pageSize: searchParams.pageSize,
+          current: searchParams.current,
+          total,
+        }"
+        @page-change="onPageChange"
+      >
+        <template #tags="{ record }">
+          <a-space wrap>
+            <a-tag
+              v-for="(tag, index) of record.tags"
+              :key="index"
+              color="green"
+              >{{ tag }}
+            </a-tag>
+          </a-space>
+        </template>
+        <template #acceptedRate="{ record }">
+          {{
+            record.submitNum
+              ? Math.floor((record.acceptedNum / record.submitNum) * 100)
+              : 0
+          }}%
+        </template>
+        <template #createTime="{ record }">
+          {{ moment(record.createTime).format("YYYY-MM-DD") }}
+        </template>
+        <template #optional="{ record }">
+          <a-space>
+            <a-button type="primary" @click="toQuestionPage(record)">
+              做题</a-button
+            >
+          </a-space>
+        </template>
+      </a-table>
+    </a-card>
   </div>
 </template>
 
@@ -175,7 +181,6 @@ const doSubmit = () => {
 
 <style scoped>
 #questionsView {
-  max-width: 1280px;
-  margin: 0 auto;
+  width: 100%;
 }
 </style>

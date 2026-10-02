@@ -1,7 +1,7 @@
 <template>
   <div id="userRegisterView">
     <a-form :model="form" class="register-form" @submit="handleSubmit">
-      <div class="title">欢迎注册 彭彭彭 OJ 系统</div>
+      <div class="title">欢迎注册 Cookie OJ 系统</div>
 
       <a-form-item field="userAccount" label="昵称">
         <a-input v-model="form.userAccount" placeholder="请输入昵称" />

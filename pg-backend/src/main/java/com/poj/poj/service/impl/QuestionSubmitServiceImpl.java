@@ -6,6 +6,8 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.poj.poj.common.ErrorCode;
 import com.poj.poj.constant.CommonConstant;
 import com.poj.poj.exception.BusinessException;
+import com.poj.poj.judge.QuestionSubmitCreatedEvent;
+import com.poj.poj.mapper.QuestionMapper;
 import com.poj.poj.model.dto.questionsubmit.QuestionSubmitAddRequest;
 import com.poj.poj.model.dto.questionsubmit.QuestionSubmitQueryRequest;
 import com.poj.poj.model.entity.Question;
@@ -19,10 +21,13 @@ import com.poj.poj.service.QuestionSubmitService;
 import com.poj.poj.mapper.QuestionSubmitMapper;
 import com.poj.poj.service.UserService;
 import com.poj.poj.utils.SqlUtils;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
 import java.util.List;
@@ -33,6 +38,7 @@ import java.util.stream.Collectors;
 * @description 针对表【question_submit(题目提交)】的数据库操作Service实现
 * @createDate 2026-08-11 13:55:43
 */
+@Slf4j
 @Service
 public class QuestionSubmitServiceImpl extends ServiceImpl<QuestionSubmitMapper, QuestionSubmit>
     implements QuestionSubmitService{
@@ -42,6 +48,11 @@ public class QuestionSubmitServiceImpl extends ServiceImpl<QuestionSubmitMapper,
     @Resource
     private UserService userService;
 
+    @Resource
+    private QuestionMapper questionMapper;
+
+    @Resource
+    private ApplicationEventPublisher eventPublisher;
     /**
      * 提交题目
      *
@@ -50,12 +61,20 @@ public class QuestionSubmitServiceImpl extends ServiceImpl<QuestionSubmitMapper,
      * @return
      */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public long doQuestionSubmit(QuestionSubmitAddRequest questionSubmitAddRequest, User loginUser) {
         // 校验编程语言是否合法
         String language = questionSubmitAddRequest.getLanguage();
         QuestionSubmitLanguageEnum languageEnum = QuestionSubmitLanguageEnum.getEnumByValue(language);
         if (languageEnum == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "编程语言错误");
+        }
+        String code = questionSubmitAddRequest.getCode();
+        if (StringUtils.isBlank(code)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "代码不能为空");
+        }
+        if (code.length() > 65536) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "代码长度不能超过 65536 个字符");
         }
         long questionId = questionSubmitAddRequest.getQuestionId();
         // 判断实体是否存在，根据类别获取实体
@@ -69,7 +88,7 @@ public class QuestionSubmitServiceImpl extends ServiceImpl<QuestionSubmitMapper,
         QuestionSubmit questionSubmit = new QuestionSubmit();
         questionSubmit.setUserId(userId);
         questionSubmit.setQuestionId(questionId);
-        questionSubmit.setCode(questionSubmitAddRequest.getCode());
+        questionSubmit.setCode(code);
         questionSubmit.setLanguage(language);
         // 设置初始状态
         questionSubmit.setStatus(QuestionSubmitStatusEnum.WAITING.getValue());
@@ -78,9 +97,13 @@ public class QuestionSubmitServiceImpl extends ServiceImpl<QuestionSubmitMapper,
         if (!save){
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "数据插入失败");
         }
-        return questionSubmit.getId();
+        Long questionSubmitId = questionSubmit.getId();
+        if (questionMapper.incrementSubmitNum(questionId) != 1) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "题目提交数更新失败");
+        }
+        eventPublisher.publishEvent(new QuestionSubmitCreatedEvent(questionSubmitId));
+        return questionSubmitId;
     }
-
 
     /**
      * 获取查询包装类（用户根据哪些字段查询，根据前端传来的请求对象，得到 mybatis 框架支持的查询 QueryWrapper 类）

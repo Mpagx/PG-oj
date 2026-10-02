@@ -63,4 +63,17 @@ public enum QuestionSubmitStatusEnum {
     public String getText() {
         return text;
     }
+
+    public boolean canTransitionTo(QuestionSubmitStatusEnum target) {
+        if (target == null) {
+            return false;
+        }
+        if (this == WAITING) {
+            return target == RUNNING;
+        }
+        if (this == RUNNING) {
+            return target == SUCCEED || target == FAILED;
+        }
+        return false;
+    }
 }
