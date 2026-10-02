@@ -48,10 +48,13 @@
               :style="{ width: '320px' }"
               placeholder="选择编程语言"
             >
-              <a-option>java</a-option>
-              <a-option>cpp</a-option>
-              <a-option>go</a-option>
-              <a-option>html</a-option>
+              <a-option
+                v-for="language in QUESTION_SUBMIT_LANGUAGES"
+                :key="language.value"
+                :value="language.value"
+              >
+                {{ language.label }}
+              </a-option>
             </a-select>
           </a-form-item>
         </a-form>
@@ -81,6 +84,7 @@ import {
 import message from "@arco-design/web-vue/es/message";
 import CodeEditor from "@/components/CodeEditor.vue";
 import MdViewer from "@/components/MdViewer.vue";
+import { QUESTION_SUBMIT_LANGUAGES } from "@/constants/questionSubmitLanguage";
 
 interface Props {
   id: string;
@@ -104,7 +108,7 @@ const loadData = async () => {
 };
 
 const form = ref<QuestionSubmitAddRequest>({
-  language: "java",
+  language: QUESTION_SUBMIT_LANGUAGES[0].value,
   code: "",
 });
 

@@ -1,24 +1,30 @@
-# pg-frontend
+# POJ
 
-## Project setup
+POJ is organized as a single repository with independent frontend and backend projects.
+
+## Repository layout
+
+```text
+Poj/
+├── pg-frontend/  # Vue 3 frontend
+└── pg-backend/   # Spring Boot backend
 ```
+
+## Frontend
+
+```bash
+cd pg-frontend
 npm install
-```
-
-### Compiles and hot-reloads for development
-```
 npm run serve
 ```
 
-### Compiles and minifies for production
-```
-npm run build
+## Backend
+
+The backend requires Java 17.
+
+```bash
+cd pg-backend
+./mvnw spring-boot:run
 ```
 
-### Lints and fixes files
-```
-npm run lint
-```
-
-### Customize configuration
-See [Configuration Reference](https://cli.vuejs.org/config/).
+The supported code submission language values are `java`, `cpp`, and `go`.
