@@ -18,6 +18,7 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.Collections;
+import java.util.Objects;
 
 /** 调用现有 cookie-code-sandbox 的 HTTP 客户端。 */
 @Component
@@ -64,6 +65,12 @@ public class RemoteCodeSandbox implements CodeSandbox {
             ExecuteCodeResponse body = response.getBody();
             if (!response.getStatusCode().is2xxSuccessful() || body == null || body.getStatus() == null) {
                 throw new IllegalStateException("代码沙箱返回了无效响应");
+            }
+            if (!Objects.equals(executeCodeRequest.getProtocolVersion(), body.getProtocolVersion())) {
+                throw new IllegalStateException("代码沙箱协议版本不匹配");
+            }
+            if (!Objects.equals(executeCodeRequest.getRequestId(), body.getRequestId())) {
+                throw new IllegalStateException("代码沙箱响应 requestId 不匹配");
             }
             return body;
         } catch (RestClientException e) {

@@ -51,7 +51,9 @@ public class JavaDockerCodeSandbox implements CodeSandbox {
     private static final String CONTAINER_CODE_DIR = "/app";
     private static final String DEFAULT_IMAGE = "openjdk:8-alpine";
     private static final long TIME_OUT_MILLIS = 5000L;
-    private static final long MEMORY_LIMIT = 256L * 1024 * 1024;
+    private static final long DEFAULT_MEMORY_LIMIT_KB = 256L * 1024;
+
+    private static final long DEFAULT_STACK_LIMIT_KB = 64L * 1024;
 
     @Override
     public ExecuteCodeResponse executeCode(ExecuteCodeRequest request) {
@@ -63,6 +65,9 @@ public class JavaDockerCodeSandbox implements CodeSandbox {
 
         try {
             validateRequest(request);
+            long timeoutMillis = positiveOrDefault(request.getTimeLimitMs(), TIME_OUT_MILLIS);
+            long memoryLimitKb = positiveOrDefault(request.getMemoryLimitKb(), DEFAULT_MEMORY_LIMIT_KB);
+            long stackLimitKb = positiveOrDefault(request.getStackLimitKb(), DEFAULT_STACK_LIMIT_KB);
 
             // 每次请求使用独立目录。本地目录名为 app，归档上传后正好对应容器 /app。
             File globalCodeDirectory = FileUtil.mkdir(
@@ -112,8 +117,8 @@ public class JavaDockerCodeSandbox implements CodeSandbox {
             copyContainerId = null;
 
             HostConfig hostConfig = new HostConfig()
-                    .withMemory(MEMORY_LIMIT)
-                    .withMemorySwap(MEMORY_LIMIT)
+                    .withMemory(memoryLimitKb * 1024)
+                    .withMemorySwap(memoryLimitKb * 1024)
                     .withNanoCPUs(1_000_000_000L)
                     .withPidsLimit(64L)
                     .withReadonlyRootfs(true)
@@ -137,7 +142,8 @@ public class JavaDockerCodeSandbox implements CodeSandbox {
 
             dockerClient.startContainerCmd(containerId).exec();
 
-            return runTestCases(dockerClient, containerId, request.getInputList());
+            return runTestCases(dockerClient, containerId, request.getInputList(),
+                    timeoutMillis, stackLimitKb);
         } catch (Throwable e) {
             return getErrorResponse(e);
         } finally {
@@ -170,13 +176,15 @@ public class JavaDockerCodeSandbox implements CodeSandbox {
     }
 
     private ExecuteCodeResponse runTestCases(
-            DockerClient dockerClient, String containerId, List<String> inputList) throws Exception {
+            DockerClient dockerClient, String containerId, List<String> inputList,
+            long timeoutMillis, long stackLimitKb) throws Exception {
         List<ExecuteMessage> executeMessages = new ArrayList<>();
         long maxTime = 0L;
         long maxMemory = 0L;
 
         for (String input : inputList) {
-            ExecuteMessage result = runOneTestCase(dockerClient, containerId, input);
+            ExecuteMessage result = runOneTestCase(
+                    dockerClient, containerId, input, timeoutMillis, stackLimitKb);
             executeMessages.add(result);
             maxTime = Math.max(maxTime, result.getTime() == null ? 0L : result.getTime());
             maxMemory = Math.max(maxMemory, result.getMemory() == null ? 0L : result.getMemory());
@@ -210,12 +218,14 @@ public class JavaDockerCodeSandbox implements CodeSandbox {
     }
 
     private ExecuteMessage runOneTestCase(
-            DockerClient dockerClient, String containerId, String input) throws Exception {
+            DockerClient dockerClient, String containerId, String input,
+            long timeoutMillis, long stackLimitKb) throws Exception {
         String[] inputArguments = StrUtil.isBlank(input)
                 ? new String[0]
                 : input.trim().split("\\s+");
         String[] command = ArrayUtil.append(
-                new String[]{"java", "-Xmx128m", "-Dfile.encoding=UTF-8", "-cp", CONTAINER_CODE_DIR, "Main"},
+                new String[]{"java", "-Xmx128m", "-Xss" + stackLimitKb + "k",
+                        "-Dfile.encoding=UTF-8", "-cp", CONTAINER_CODE_DIR, "Main"},
                 inputArguments);
 
         ExecCreateCmdResponse exec = dockerClient.execCreateCmd(containerId)
@@ -260,7 +270,7 @@ public class JavaDockerCodeSandbox implements CodeSandbox {
             stopWatch.start();
             completed = dockerClient.execStartCmd(exec.getId())
                     .exec(execCallback)
-                    .awaitCompletion(TIME_OUT_MILLIS, TimeUnit.MILLISECONDS);
+                    .awaitCompletion(timeoutMillis, TimeUnit.MILLISECONDS);
             stopWatch.stop();
         } finally {
             statsCmd.close();
@@ -270,11 +280,11 @@ public class JavaDockerCodeSandbox implements CodeSandbox {
 
         ExecuteMessage result = new ExecuteMessage();
         result.setTime(stopWatch.getLastTaskTimeMillis());
-        result.setMemory(peakMemory[0]);
+        result.setMemory((peakMemory[0] + 1023L) / 1024L);
 
         if (!completed) {
             dockerClient.stopContainerCmd(containerId).withTimeout(0).exec();
-            result.setErrorMessage("执行超时（限制 " + TIME_OUT_MILLIS + " ms）");
+            result.setErrorMessage("执行超时（限制 " + timeoutMillis + " ms）");
             return result;
         }
 
@@ -314,6 +324,10 @@ public class JavaDockerCodeSandbox implements CodeSandbox {
         response.setStatus("3");
         response.setJudgeInfo(judgeInfo);
         return response;
+    }
+
+    private long positiveOrDefault(Long value, long defaultValue) {
+        return value == null || value <= 0 ? defaultValue : value;
     }
 
     private ExecuteCodeResponse getErrorResponse(Throwable e) {

@@ -16,6 +16,7 @@ import com.poj.poj.judge.codesandbox.model.JudgeInfo;
 import com.poj.poj.model.entity.Question;
 import com.poj.poj.model.entity.QuestionSubmit;
 import com.poj.poj.model.enums.QuestionSubmitStatusEnum;
+import com.poj.poj.model.enums.JudgeInfoMessageEnum;
 import com.poj.poj.service.QuestionService;
 import com.poj.poj.service.QuestionSubmitService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -97,6 +98,30 @@ public class JudgeServiceImpl implements JudgeService {
                     "代码沙箱执行异常：" + executeCodeResponse.getMessage());
         }
         List<String> outputList = executeCodeResponse.getOutputList();
+        if ("3".equals(executeCodeResponse.getStatus())) {
+            JudgeInfo userCodeFailure = executeCodeResponse.getJudgeInfo();
+            if (userCodeFailure == null) {
+                userCodeFailure = new JudgeInfo();
+            }
+            String detail = executeCodeResponse.getMessage();
+            if (detail == null && userCodeFailure.getMessage() != null) {
+                detail = userCodeFailure.getMessage();
+            }
+            if (detail != null && detail.contains("编译")) {
+                userCodeFailure.setMessage(JudgeInfoMessageEnum.COMPILE_ERROR.getValue());
+            } else if (detail != null && detail.contains("超时")) {
+                userCodeFailure.setMessage(JudgeInfoMessageEnum.TIME_LIMIT_EXCEEDED.getValue());
+            } else {
+                userCodeFailure.setMessage(JudgeInfoMessageEnum.RUNTIME_ERROR.getValue());
+            }
+            userCodeFailure.setPassedCaseCount(outputList == null ? 0 : outputList.size());
+            userCodeFailure.setTotalCaseCount(judgeCaseList.size());
+            userCodeFailure.setDetail(detail);
+            if (!stateMachine.complete(questionSubmitId, questionId, userCodeFailure, false)) {
+                throw new BusinessException(ErrorCode.SYSTEM_ERROR, "题目状态更新错误");
+            }
+            return questionSubmitService.getById(questionSubmitId);
+        }
         // 5）根据沙箱的执行结果，设置题目的判题状态和信息
         JudgeContext judgeContext = new JudgeContext();
         judgeContext.setJudgeInfo(executeCodeResponse.getJudgeInfo());
