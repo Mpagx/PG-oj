@@ -11,6 +11,12 @@
 
 <style>
 #app {
+  min-height: 100vh;
+}
+
+body {
+  margin: 0;
+  background: #f5f7fa;
 }
 </style>
 <script setup lang="ts">

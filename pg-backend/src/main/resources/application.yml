@@ -101,3 +101,10 @@ knife4j:
         api-rule: package
         api-rule-resources:
           - com.poj.poj.controller
+#代码沙箱配置
+codesandbox:
+  type: remote
+  base-url: ${CODE_SANDBOX_BASE_URL:http://127.0.0.1:8090}
+  connect-timeout-ms: ${CODE_SANDBOX_CONNECT_TIMEOUT_MS:2000}
+  read-timeout-ms: ${CODE_SANDBOX_READ_TIMEOUT_MS:10000}
+  token: ${CODE_SANDBOX_TOKEN:}

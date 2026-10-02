@@ -9,6 +9,16 @@ module.exports = {
         changeOrigin: true,
       },
     },
+    client: {
+      // 关闭 webpack-dev-server 在浏览器里拦截 console.warn/error 后弹出的覆盖层
+      // errors: true 保留真正的报错弹层，warnings: false 屏蔽烦人的警告弹层
+      overlay: {
+        errors: true,
+        warnings: false,
+      },
+      // 控制台/终端只显示 error 级别，屏蔽 info/warn 的啰嗦输出
+      logging: "error",
+    },
   },
   configureWebpack: {
     // Monaco 的 html/css/json/ts 等语言需要 web worker 提供智能提示，

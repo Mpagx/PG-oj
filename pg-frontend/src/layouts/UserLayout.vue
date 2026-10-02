@@ -6,7 +6,7 @@
         <div class="header-inner">
           <div class="logo-area" @click="goHome">
             <img class="logo" :src="logoImg" alt="logo" />
-            <span class="system-title">彭彭彭 OJ 判题系统</span>
+            <span class="system-title">Cookie OJ 判题系统</span>
           </div>
           <a-space class="header-actions">
             <a-button type="text" class="header-btn" @click="openGithub">
@@ -34,7 +34,7 @@
       <!-- 底部 -->
       <a-layout-footer class="footer">
         <div class="footer-inner">
-          <span>© 2025 彭彭彭 OJ 判题系统</span>
+          <span>© 2025 Cookie OJ 判题系统</span>
           <a-divider type="vertical" />
           <a href="https://github.com" target="_blank" rel="noopener"
             >关于我们</a
