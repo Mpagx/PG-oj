@@ -47,6 +47,7 @@
               v-model="form.language"
               :style="{ width: '320px' }"
               placeholder="选择编程语言"
+              @change="handleLanguageChange"
             >
               <a-option
                 v-for="language in QUESTION_SUBMIT_LANGUAGES"
@@ -80,11 +81,12 @@ import {
   QuestionSubmitAddRequest,
   QuestionSubmitControllerService,
   QuestionVO,
-} from "../../../generated";
+} from "@/generated";
 import message from "@arco-design/web-vue/es/message";
 import CodeEditor from "@/components/CodeEditor.vue";
 import MdViewer from "@/components/MdViewer.vue";
 import { QUESTION_SUBMIT_LANGUAGES } from "@/constants/questionSubmitLanguage";
+import { detectCodeLanguage } from "@/utils/codeLanguage";
 
 interface Props {
   id: string;
@@ -93,7 +95,6 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   id: () => "",
 });
-
 const question = ref<QuestionVO>();
 
 const loadData = async () => {
@@ -141,9 +142,20 @@ onMounted(() => {
 const changeCode = (value: string) => {
   form.value.code = value;
 };
+
+/**
+ * 切换编程语言：对当前已输入的代码做一次粗略判断，
+ * 若代码看起来与所选语言不符，给出非阻断的提示（不阻止提交）
+ */
+const handleLanguageChange = (language: string) => {
+  const detected = detectCodeLanguage(form.value.code ?? "");
+  if (detected && detected !== language) {
+    message.warning(`当前代码疑似 ${detected}，但你选择了 ${language}，请确认`);
+  }
+};
 </script>
 
-<style>
+<style scoped>
 #viewQuestionView {
   max-width: 1400px;
   margin: 0 auto;

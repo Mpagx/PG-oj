@@ -1,6 +1,6 @@
-# POJ
+# PG-OJ
 
-POJ is organized as a single repository with independent frontend and backend projects.
+基于 Spring Boot、消息队列和 Docker 的在线编程题目评测系统。项目采用单仓结构，前端和后端保持为两个独立项目。
 
 ## Repository layout
 

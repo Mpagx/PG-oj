@@ -5,13 +5,14 @@
 
 <script setup lang="ts">
 import * as monaco from "monaco-editor";
-import { onMounted, ref, toRaw, withDefaults, defineProps } from "vue";
+import { onMounted, ref, toRaw, withDefaults, defineProps, watch } from "vue";
 
 /**
  * 定义组件属性类型
  */
 interface Props {
   value: string;
+  language?: string;
   handleChange: (v: string) => void;
 }
 
@@ -20,6 +21,7 @@ interface Props {
  */
 const props = withDefaults(defineProps<Props>(), {
   value: () => "",
+  language: () => "java",
   handleChange: (v: string) => {
     console.log(v);
   },
@@ -40,10 +42,10 @@ onMounted(() => {
   if (!codeEditorRef.value) {
     return;
   }
-  // Hover on each property to see its docs!
+  // 创建一次编辑器实例，之后切换语言只改模型语言，不重建编辑器
   codeEditor.value = monaco.editor.create(codeEditorRef.value, {
     value: props.value,
-    language: "java",
+    language: props.language,
     automaticLayout: true,
     colorDecorators: true,
     minimap: {
@@ -51,9 +53,6 @@ onMounted(() => {
     },
     readOnly: false,
     theme: "vs-dark",
-    // lineNumbers: "off",
-    // roundedSelection: false,
-    // scrollBeyondLastLine: false,
   });
 
   // 编辑 监听内容变化
@@ -61,6 +60,21 @@ onMounted(() => {
     props.handleChange(toRaw(codeEditor.value).getValue());
   });
 });
+
+// 切换编程语言：只切换当前模型的语法高亮语言，保留用户已输入的代码和内容监听
+watch(
+  () => props.language,
+  (language) => {
+    const editor = codeEditor.value;
+    if (!editor) {
+      return;
+    }
+    const model = editor.getModel();
+    if (model) {
+      monaco.editor.setModelLanguage(model, language);
+    }
+  }
+);
 </script>
 
 <style scoped></style>

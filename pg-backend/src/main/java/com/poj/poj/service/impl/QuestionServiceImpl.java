@@ -84,8 +84,6 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
      */
     @Override
     public QueryWrapper<Question> getQueryWrapper(QuestionQueryRequest questionQueryRequest) {
-        System.out.println("✅ getQueryWrapper 被调用了");
-        System.out.println("tags = " + questionQueryRequest.getTags());
         QueryWrapper<Question> queryWrapper = new QueryWrapper<>();
         if (questionQueryRequest == null) {
             return queryWrapper;
