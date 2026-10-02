@@ -5,13 +5,22 @@
  * 判断不出来时返回 null，避免误报。真正判定代码对不对由后端判题机负责。
  *
  * @param code 用户输入的代码
- * @returns 识别出的语言值（java / cpp / go），无法判断时返回 null
+ * @returns 识别出的语言值（java / cpp / go / html），无法判断时返回 null
  */
 export function detectCodeLanguage(code: string): string | null {
   if (!code || !code.trim()) {
     return null;
   }
   const c = code.trim();
+
+  // html：标签特征非常明显，优先判断
+  if (
+    /<\s*!DOCTYPE\s+html/i.test(c) ||
+    /<\s*html[\s>]/i.test(c) ||
+    /<\/\s*[a-z]+\s*>/i.test(c)
+  ) {
+    return "html";
+  }
 
   // cpp：预处理指令 / 头文件 / 命名空间 / 标准输入输出
   if (
