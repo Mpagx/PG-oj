@@ -59,6 +59,20 @@ class JavaDockerCodeSandboxTest {
         assertThrows(IllegalArgumentException.class, () -> sandbox.validateRequest(request));
     }
 
+    @Test
+    void resolvesDefaultResourceLimit() {
+        assertEquals(1000L,
+                sandbox.limitedOrDefault("时间", null, 1000L, 100L, 5000L));
+    }
+
+    @Test
+    void rejectsResourceLimitOutsideSandboxBoundary() {
+        assertThrows(IllegalArgumentException.class,
+                () -> sandbox.limitedOrDefault("时间", 10_001L, 1000L, 100L, 10_000L));
+        assertThrows(IllegalArgumentException.class,
+                () -> sandbox.limitedOrDefault("内存", 1024L, 262_144L, 16_384L, 524_288L));
+    }
+
     private ExecuteCodeRequest request(String code, java.util.List<String> inputs) {
         return ExecuteCodeRequest.builder()
                 .language("java")

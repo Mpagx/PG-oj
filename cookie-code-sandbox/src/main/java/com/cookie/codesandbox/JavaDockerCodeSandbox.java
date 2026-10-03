@@ -432,7 +432,7 @@ public class JavaDockerCodeSandbox implements CodeSandbox {
         }
     }
 
-    private long limitedOrDefault(
+    long limitedOrDefault(
             String resourceName, Long value, long defaultValue, long min, long max) {
         long resolved = value == null || value <= 0 ? defaultValue : value;
         if (resolved < min || resolved > max) {

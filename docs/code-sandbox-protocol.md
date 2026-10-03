@@ -93,6 +93,29 @@ The service defaults can be tightened with these environment variables:
 - `CODE_SANDBOX_MAX_CONCURRENT_EXECUTIONS`
 - `CODE_SANDBOX_QUEUE_WAIT_TIMEOUT_MS`
 
+## Test suites
+
+Run unit tests and the HTTP controller integration tests without starting the
+VM or Docker Engine:
+
+```bash
+mvn test
+```
+
+After starting the VM Docker Engine, exposing it through the configured
+`DOCKER_HOST`, and preparing the `openjdk:8-alpine` image, run the real
+malicious-code regression suite explicitly:
+
+```bash
+mvn -Dsandbox.docker.tests=true test
+```
+
+The malicious suite verifies deadline termination, bounded output, read-only
+root-file-system enforcement, disabled outbound networking, container memory
+limits, and PID limits. It is disabled during ordinary builds so a stopped VM
+cannot be mistaken for a code regression; when explicitly enabled, unavailable
+Docker dependencies fail the suite with a setup message.
+
 ## Submission state machine
 
 ```text
