@@ -9,6 +9,8 @@ import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 
 import java.util.Collections;
+import java.util.Arrays;
+import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -107,13 +109,44 @@ class JavaDockerMaliciousCodeTest {
         assertUserCodeFailed(response);
     }
 
+    @Test
+    void compilesAndRunsWithoutHostJavacExecution() {
+        ExecuteCodeResponse response = execute(
+                "public class Main { public static void main(String[] args) {"
+                        + " System.out.print(\"compiled-in-container\"); } }",
+                1500L, 131_072L);
+
+        assertEquals("1", response.getStatus(), response.getMessage());
+        assertEquals(Collections.singletonList("compiled-in-container"), response.getOutputList());
+    }
+
+    @Test
+    void isolatesMutableStateBetweenTestCases() {
+        ExecuteCodeResponse response = execute(
+                "import java.nio.file.*; public class Main {"
+                        + " public static void main(String[] args) throws Exception {"
+                        + " Path state = Paths.get(\"/tmp/previous-case\");"
+                        + " if (Files.exists(state)) throw new IllegalStateException(\"state leaked\");"
+                        + " Files.write(state, args[0].getBytes(\"UTF-8\"));"
+                        + " System.out.print(args[0]); } }",
+                Arrays.asList("first", "second"), 1500L, 131_072L);
+
+        assertEquals("1", response.getStatus(), response.getMessage());
+        assertEquals(Arrays.asList("first", "second"), response.getOutputList());
+    }
+
     private ExecuteCodeResponse execute(String code, long timeLimitMs, long memoryLimitKb) {
+        return execute(code, Collections.singletonList(""), timeLimitMs, memoryLimitKb);
+    }
+
+    private ExecuteCodeResponse execute(
+            String code, List<String> inputs, long timeLimitMs, long memoryLimitKb) {
         ExecuteCodeRequest request = ExecuteCodeRequest.builder()
                 .protocolVersion("1.0")
                 .requestId("malicious-test-" + UUID.randomUUID())
                 .language("java")
                 .code(code)
-                .inputList(Collections.singletonList(""))
+                .inputList(inputs)
                 .timeLimitMs(timeLimitMs)
                 .memoryLimitKb(memoryLimitKb)
                 .stackLimitKb(1024L)

@@ -6,6 +6,8 @@ import com.github.dockerjava.core.DockerClientImpl;
 import com.github.dockerjava.httpclient5.ApacheDockerHttpClient;
 
 import java.time.Duration;
+import java.net.InetAddress;
+import java.net.URI;
 
 /**
  * Docker 客户端构建器。
@@ -40,6 +42,8 @@ public class DockerClientBuilder {
                 .withDockerHost(dockerHost)
                 .build();
 
+        validateDockerEndpoint(config.getDockerHost(), config.getSSLConfig() != null);
+
         ApacheDockerHttpClient httpClient = new ApacheDockerHttpClient.Builder()
                 .dockerHost(config.getDockerHost())
                 .sslConfig(config.getSSLConfig())
@@ -48,5 +52,32 @@ public class DockerClientBuilder {
                 .build();
 
         return DockerClientImpl.getInstance(config, httpClient);
+    }
+
+    /**
+     * 明文 Docker TCP API 等同于宿主机 root 权限，只允许走本机回环地址。
+     * 远程地址必须配置 Docker TLS（DOCKER_TLS_VERIFY + DOCKER_CERT_PATH）。
+     */
+    static void validateDockerEndpoint(URI dockerHost, boolean tlsEnabled) {
+        if (dockerHost == null || !"tcp".equalsIgnoreCase(dockerHost.getScheme())) {
+            return;
+        }
+        String host = dockerHost.getHost();
+        if (tlsEnabled || isLoopback(host)) {
+            return;
+        }
+        throw new IllegalStateException(
+                "拒绝连接未启用 TLS 的远程 Docker API；请使用本机 SSH 隧道或配置 Docker TLS");
+    }
+
+    private static boolean isLoopback(String host) {
+        if (host == null) {
+            return false;
+        }
+        try {
+            return InetAddress.getByName(host).isLoopbackAddress();
+        } catch (Exception ignored) {
+            return false;
+        }
     }
 }

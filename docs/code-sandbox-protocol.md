@@ -72,12 +72,21 @@ failure), and `3` (user-code compilation or runtime failure).
 
 ## Runtime hardening
 
-Each execution container runs as UID/GID `65534`, with networking disabled,
-all Linux capabilities dropped, `no-new-privileges`, a read-only root file
-system, a read-only code volume, and a small `noexec` temporary file system.
-Memory, swap, CPU, process count, execution time, source/input size, output
-size, and service concurrency are bounded independently of the limits supplied
-by a request. Compilation also has a timeout and bounded diagnostic output.
+Compilation no longer invokes `javac` on the Windows host. Source is copied to
+a temporary Docker volume and compiled in a disposable, unprivileged compiler
+container. The compiler has no network, a read-only root file system, dropped
+capabilities, `no-new-privileges`, and independent memory, PID, timeout, and
+diagnostic-output limits.
+
+Every test case runs in a newly created execution container, so files under
+`/tmp`, background processes, and other mutable state cannot leak into the next
+case. Each execution container runs as UID/GID `65534`, with networking
+disabled, all Linux capabilities dropped, `no-new-privileges`, a read-only root
+file system, a read-only code volume, and a small `noexec` temporary file
+system. Memory, swap, CPU, process count, execution time, source/input size,
+output size, and service concurrency are bounded independently of the limits
+supplied by a request. A container is stopped as soon as the output limit is
+exceeded and is always removed in a `finally` cleanup path.
 
 The service defaults can be tightened with these environment variables:
 
@@ -102,19 +111,39 @@ VM or Docker Engine:
 mvn test
 ```
 
-After starting the VM Docker Engine, exposing it through the configured
-`DOCKER_HOST`, and preparing the `openjdk:8-alpine` image, run the real
-malicious-code regression suite explicitly:
+The VM Docker daemon listens only on its own loopback interface. Start the VM
+headlessly and create the SSH tunnel used by the sandbox:
+
+```powershell
+cd D:\Study\Poj\cookie-code-sandbox
+.\scripts\start-sandbox-vm.ps1
+```
+
+The script exposes Docker locally as `tcp://127.0.0.1:2375`; the guest's port
+2375 is not reachable directly from the LAN or host-only network. The Java
+client also rejects a non-loopback plaintext Docker endpoint. If the VM is
+rebuilt, apply the guest daemon setting once with
+`sudo bash scripts/harden-vm-docker.sh` inside the VM.
+
+With the `openjdk:8-alpine` image prepared, run the real malicious-code
+regression suite explicitly:
 
 ```bash
 mvn -Dsandbox.docker.tests=true test
 ```
 
-The malicious suite verifies deadline termination, bounded output, read-only
-root-file-system enforcement, disabled outbound networking, container memory
-limits, and PID limits. It is disabled during ordinary builds so a stopped VM
-cannot be mistaken for a code regression; when explicitly enabled, unavailable
-Docker dependencies fail the suite with a setup message.
+The malicious suite verifies container-only compilation, per-case mutable-state
+isolation, deadline termination, bounded output, read-only root-file-system
+enforcement, disabled outbound networking, container memory limits, and PID
+limits. It is disabled during ordinary builds so a stopped VM cannot be
+mistaken for a code regression; when explicitly enabled, unavailable Docker
+dependencies fail the suite with a setup message.
+
+Stop the tunnel and VM after testing to release host memory:
+
+```powershell
+.\scripts\stop-sandbox-vm.ps1
+```
 
 ## Submission state machine
 
