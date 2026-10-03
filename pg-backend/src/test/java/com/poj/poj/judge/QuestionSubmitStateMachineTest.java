@@ -11,6 +11,8 @@ import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
+import java.util.Date;
+
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -42,8 +44,18 @@ class QuestionSubmitStateMachineTest {
         when(questionMapper.incrementAcceptedNum(20L)).thenReturn(1);
         QuestionSubmitStateMachine stateMachine = new QuestionSubmitStateMachine(submitMapper, questionMapper);
 
-        assertTrue(stateMachine.tryStart(10L));
-        assertTrue(stateMachine.complete(10L, 20L, new JudgeInfo(), true));
+        assertTrue(stateMachine.tryStart(10L, "token-1", new Date(System.currentTimeMillis() + 1000)));
+        assertTrue(stateMachine.complete(10L, "token-1", 20L, new JudgeInfo(), true));
         verify(questionMapper).incrementAcceptedNum(20L);
+    }
+
+    @Test
+    void duplicateClaimDoesNotStartSecondWorker() {
+        QuestionSubmitMapper submitMapper = mock(QuestionSubmitMapper.class);
+        QuestionMapper questionMapper = mock(QuestionMapper.class);
+        when(submitMapper.update(any(), any())).thenReturn(0);
+        QuestionSubmitStateMachine stateMachine = new QuestionSubmitStateMachine(submitMapper, questionMapper);
+
+        assertFalse(stateMachine.tryStart(10L, "duplicate", new Date()));
     }
 }

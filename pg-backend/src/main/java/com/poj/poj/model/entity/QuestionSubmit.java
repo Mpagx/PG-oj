@@ -39,6 +39,21 @@ public class QuestionSubmit {
      */
     private Integer status;
 
+    /** 当前判题尝试次数。 */
+    private Integer judgeAttempt;
+
+    /** 当前执行租约令牌，用于阻止过期工作线程覆盖新结果。 */
+    private String judgeToken;
+
+    /** 当前执行租约截止时间，超时后可由恢复任务重新入队。 */
+    private Date judgeDeadline;
+
+    /** 失败重试的最早时间。 */
+    private Date nextRetryTime;
+
+    /** 最近一次系统错误，便于排查故障。 */
+    private String lastError;
+
     /**
      * 题目 id
      */

@@ -55,13 +55,20 @@ create table if not exists question_submit
     code         text                               not null comment '用户代码',
     judgeInfo    text                               null comment '判题信息（json 对象）',
     status       int      default 0                 not null comment '判题状态（0 - 待判题、1 - 判题中、2 - 成功、3 - 失败）',
+    judgeAttempt int      default 0                 not null comment '判题尝试次数',
+    judgeToken   varchar(64)                        null comment '当前判题执行令牌',
+    judgeDeadline datetime                           null comment '当前判题租约截止时间',
+    nextRetryTime datetime                           null comment '下次允许重试时间',
+    lastError    varchar(1024)                       null comment '最近一次系统错误',
     questionId   bigint                             not null comment '题目 id',
     userId       bigint                             not null comment '创建用户 id',
     createTime   datetime default CURRENT_TIMESTAMP not null comment '创建时间',
     updateTime   datetime default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间',
     isDelete     tinyint  default 0                 not null comment '是否删除',
     index idx_questionId (questionId),
-    index idx_userId (userId)
+    index idx_userId (userId),
+    index idx_judge_queue (status, nextRetryTime),
+    index idx_judge_recovery (status, judgeDeadline)
 ) comment '题目提交';
 
 
