@@ -4,10 +4,12 @@ import cn.hutool.core.date.StopWatch;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.ArrayUtil;
 import cn.hutool.core.util.StrUtil;
+import com.cookie.codesandbox.config.SandboxLimitsProperties;
 import com.cookie.codesandbox.model.ExecuteCodeRequest;
 import com.cookie.codesandbox.model.ExecuteCodeResponse;
 import com.cookie.codesandbox.model.ExecuteMessage;
 import com.cookie.codesandbox.model.JudgeInfo;
+import com.cookie.codesandbox.model.SandboxHealthResponse;
 import com.cookie.codesandbox.utils.ProcessUtils;
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.async.ResultCallback;
@@ -26,6 +28,7 @@ import com.github.dockerjava.api.model.Statistics;
 import com.github.dockerjava.api.model.StreamType;
 import com.github.dockerjava.api.model.Volume;
 import com.github.dockerjava.core.command.ExecStartResultCallback;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
@@ -35,6 +38,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -44,6 +48,7 @@ import java.util.concurrent.TimeUnit;
  * Docker archive API 上传到容器，因此 Docker Engine 位于 Linux 虚拟机时也能工作。</p>
  */
 @Service
+@Slf4j
 public class JavaDockerCodeSandbox implements CodeSandbox {
 
     private static final String GLOBAL_CODE_DIR_NAME = "tmpCode";
@@ -55,6 +60,39 @@ public class JavaDockerCodeSandbox implements CodeSandbox {
 
     private static final long DEFAULT_STACK_LIMIT_KB = 64L * 1024;
 
+    private static final String SANDBOX_USER = "65534:65534";
+
+    private final SandboxLimitsProperties limits;
+
+    private final Semaphore executionSlots;
+
+    public JavaDockerCodeSandbox(SandboxLimitsProperties limits) {
+        this.limits = limits;
+        this.executionSlots = new Semaphore(
+                Math.max(1, limits.getMaxConcurrentExecutions()), true);
+    }
+
+    /**
+     * 健康检查必须覆盖真正的执行依赖，避免仅 Web 端口存活就误报可用。
+     */
+    public SandboxHealthResponse health() {
+        DockerClient dockerClient = null;
+        try {
+            dockerClient = DockerClientBuilder.getInstance().build();
+            dockerClient.pingCmd().exec();
+            ensureImageExists(dockerClient,
+                    System.getProperty("codesandbox.docker.image", DEFAULT_IMAGE));
+            return new SandboxHealthResponse("UP", "cookie-code-sandbox", "1.0.0",
+                    Collections.singletonList("java"), "ok");
+        } catch (Exception e) {
+            log.warn("代码沙箱健康检查失败: {}", e.getClass().getSimpleName());
+            return new SandboxHealthResponse("DOWN", "cookie-code-sandbox", "1.0.0",
+                    Collections.emptyList(), "Docker Engine 或执行镜像不可用");
+        } finally {
+            closeDockerClientQuietly(dockerClient);
+        }
+    }
+
     @Override
     public ExecuteCodeResponse executeCode(ExecuteCodeRequest request) {
         File requestDirectory = null;
@@ -62,12 +100,19 @@ public class JavaDockerCodeSandbox implements CodeSandbox {
         String containerId = null;
         String copyContainerId = null;
         String codeVolumeName = null;
+        boolean executionSlotAcquired = false;
 
         try {
             validateRequest(request);
-            long timeoutMillis = positiveOrDefault(request.getTimeLimitMs(), TIME_OUT_MILLIS);
-            long memoryLimitKb = positiveOrDefault(request.getMemoryLimitKb(), DEFAULT_MEMORY_LIMIT_KB);
-            long stackLimitKb = positiveOrDefault(request.getStackLimitKb(), DEFAULT_STACK_LIMIT_KB);
+            executionSlotAcquired = acquireExecutionSlot();
+            long timeoutMillis = limitedOrDefault("时间", request.getTimeLimitMs(),
+                    TIME_OUT_MILLIS, limits.getMinTimeLimitMs(), limits.getMaxTimeLimitMs());
+            long memoryLimitKb = limitedOrDefault("内存", request.getMemoryLimitKb(),
+                    DEFAULT_MEMORY_LIMIT_KB, limits.getMinMemoryLimitKb(),
+                    limits.getMaxMemoryLimitKb());
+            long stackLimitKb = limitedOrDefault("栈", request.getStackLimitKb(),
+                    DEFAULT_STACK_LIMIT_KB, limits.getMinStackLimitKb(),
+                    limits.getMaxStackLimitKb());
 
             // 每次请求使用独立目录。本地目录名为 app，归档上传后正好对应容器 /app。
             File globalCodeDirectory = FileUtil.mkdir(
@@ -83,6 +128,7 @@ public class JavaDockerCodeSandbox implements CodeSandbox {
             if (compileResult.getExitValue() == null || compileResult.getExitValue() != 0) {
                 String compileError = StrUtil.blankToDefault(
                         compileResult.getErrorMessage(), "代码编译失败");
+                compileError = compileError.replace(userCodeFile.getAbsolutePath(), GLOBAL_JAVA_CLASS_NAME);
                 return userCodeErrorResponse(compileError, compileResult.getTime());
             }
 
@@ -99,11 +145,21 @@ public class JavaDockerCodeSandbox implements CodeSandbox {
             codeVolumeName = codeVolume.getName();
 
             HostConfig copyHostConfig = new HostConfig()
+                    .withMemory(64L * 1024 * 1024)
+                    .withMemorySwap(64L * 1024 * 1024)
+                    .withNanoCPUs(500_000_000L)
+                    .withPidsLimit(16L)
+                    .withReadonlyRootfs(true)
+                    .withCapDrop(Capability.ALL)
+                    .withSecurityOpts(Collections.singletonList("no-new-privileges:true"))
+                    .withTmpFs(Collections.singletonMap(
+                            "/tmp", "rw,noexec,nosuid,nodev,size=16m,mode=1777"))
                     .withBinds(new Bind(
                             codeVolumeName, new Volume(CONTAINER_CODE_DIR), AccessMode.rw));
             CreateContainerResponse copyContainer = dockerClient.createContainerCmd(image)
                     .withHostConfig(copyHostConfig)
                     .withNetworkDisabled(true)
+                    .withLabels(Collections.singletonMap("owner", "cookie-code-sandbox"))
                     .withCmd("sh", "-c", "while true; do sleep 3600; done")
                     .exec();
             copyContainerId = copyContainer.getId();
@@ -127,11 +183,14 @@ public class JavaDockerCodeSandbox implements CodeSandbox {
                     .withBinds(new Bind(
                             codeVolumeName, new Volume(CONTAINER_CODE_DIR), AccessMode.ro))
                     .withTmpFs(Collections.singletonMap(
-                            "/tmp", "rw,noexec,nosuid,size=64m"));
+                            "/tmp", "rw,noexec,nosuid,nodev,size=64m,mode=1777"));
 
             CreateContainerResponse container = dockerClient.createContainerCmd(image)
                     .withHostConfig(hostConfig)
                     .withNetworkDisabled(true)
+                    .withUser(SANDBOX_USER)
+                    .withWorkingDir(CONTAINER_CODE_DIR)
+                    .withLabels(Collections.singletonMap("owner", "cookie-code-sandbox"))
                     .withAttachStderr(true)
                     .withAttachStdout(true)
                     .withTty(false)
@@ -143,9 +202,9 @@ public class JavaDockerCodeSandbox implements CodeSandbox {
             dockerClient.startContainerCmd(containerId).exec();
 
             return runTestCases(dockerClient, containerId, request.getInputList(),
-                    timeoutMillis, stackLimitKb);
+                    timeoutMillis, memoryLimitKb, stackLimitKb);
         } catch (Throwable e) {
-            return getErrorResponse(e);
+            return getErrorResponse(e, request == null ? null : request.getRequestId());
         } finally {
             removeContainerQuietly(dockerClient, containerId);
             removeContainerQuietly(dockerClient, copyContainerId);
@@ -154,16 +213,21 @@ public class JavaDockerCodeSandbox implements CodeSandbox {
             if (requestDirectory != null) {
                 FileUtil.del(requestDirectory);
             }
+            if (executionSlotAcquired) {
+                executionSlots.release();
+            }
         }
     }
 
     private ExecuteMessage compile(File userCodeFile) throws Exception {
         Process compileProcess = new ProcessBuilder(
-                "javac", "-encoding", "UTF-8", "-source", "8", "-target", "8",
+                "javac", "-J-Xmx256m", "-J-Xss2m", "-proc:none",
+                "-encoding", "UTF-8", "-source", "8", "-target", "8",
                 userCodeFile.getAbsolutePath())
-                .redirectErrorStream(false)
+                .redirectErrorStream(true)
                 .start();
-        return ProcessUtils.runProcessAndGetMessage(compileProcess, "编译");
+        return ProcessUtils.runProcessAndGetMessage(compileProcess, "编译",
+                limits.getCompileTimeoutMs(), limits.getMaxOutputBytes());
     }
 
     private void ensureImageExists(DockerClient dockerClient, String image) {
@@ -177,14 +241,14 @@ public class JavaDockerCodeSandbox implements CodeSandbox {
 
     private ExecuteCodeResponse runTestCases(
             DockerClient dockerClient, String containerId, List<String> inputList,
-            long timeoutMillis, long stackLimitKb) throws Exception {
+            long timeoutMillis, long memoryLimitKb, long stackLimitKb) throws Exception {
         List<ExecuteMessage> executeMessages = new ArrayList<>();
         long maxTime = 0L;
         long maxMemory = 0L;
 
         for (String input : inputList) {
             ExecuteMessage result = runOneTestCase(
-                    dockerClient, containerId, input, timeoutMillis, stackLimitKb);
+                    dockerClient, containerId, input, timeoutMillis, memoryLimitKb, stackLimitKb);
             executeMessages.add(result);
             maxTime = Math.max(maxTime, result.getTime() == null ? 0L : result.getTime());
             maxMemory = Math.max(maxMemory, result.getMemory() == null ? 0L : result.getMemory());
@@ -219,12 +283,14 @@ public class JavaDockerCodeSandbox implements CodeSandbox {
 
     private ExecuteMessage runOneTestCase(
             DockerClient dockerClient, String containerId, String input,
-            long timeoutMillis, long stackLimitKb) throws Exception {
+            long timeoutMillis, long memoryLimitKb, long stackLimitKb) throws Exception {
         String[] inputArguments = StrUtil.isBlank(input)
                 ? new String[0]
                 : input.trim().split("\\s+");
+        long heapLimitKb = Math.max(16L * 1024,
+                Math.min(256L * 1024, memoryLimitKb / 2));
         String[] command = ArrayUtil.append(
-                new String[]{"java", "-Xmx128m", "-Xss" + stackLimitKb + "k",
+                new String[]{"java", "-Xmx" + heapLimitKb + "k", "-Xss" + stackLimitKb + "k",
                         "-Dfile.encoding=UTF-8", "-cp", CONTAINER_CODE_DIR, "Main"},
                 inputArguments);
 
@@ -234,8 +300,8 @@ public class JavaDockerCodeSandbox implements CodeSandbox {
                 .withAttachStdout(true)
                 .exec();
 
-        final StringBuilder stdout = new StringBuilder();
-        final StringBuilder stderr = new StringBuilder();
+        final BoundedTextBuffer stdout = new BoundedTextBuffer(limits.getMaxOutputBytes());
+        final BoundedTextBuffer stderr = new BoundedTextBuffer(limits.getMaxOutputBytes());
         final long[] peakMemory = {0L};
 
         ResultCallback.Adapter<Statistics> statsCallback = new ResultCallback.Adapter<Statistics>() {
@@ -256,11 +322,10 @@ public class JavaDockerCodeSandbox implements CodeSandbox {
         ExecStartResultCallback execCallback = new ExecStartResultCallback() {
             @Override
             public void onNext(Frame frame) {
-                String text = new String(frame.getPayload(), StandardCharsets.UTF_8);
                 if (StreamType.STDERR.equals(frame.getStreamType())) {
-                    stderr.append(text);
+                    stderr.append(frame.getPayload());
                 } else {
-                    stdout.append(text);
+                    stdout.append(frame.getPayload());
                 }
                 super.onNext(frame);
             }
@@ -282,26 +347,38 @@ public class JavaDockerCodeSandbox implements CodeSandbox {
         result.setTime(stopWatch.getLastTaskTimeMillis());
         result.setMemory((peakMemory[0] + 1023L) / 1024L);
 
+        if (stdout.isTruncated() || stderr.isTruncated()) {
+            if (!completed) {
+                stopContainerQuietly(dockerClient, containerId);
+            }
+            result.setErrorMessage("程序输出超过限制（" + limits.getMaxOutputBytes() + " bytes）");
+            return result;
+        }
+
         if (!completed) {
-            dockerClient.stopContainerCmd(containerId).withTimeout(0).exec();
+            stopContainerQuietly(dockerClient, containerId);
             result.setErrorMessage("执行超时（限制 " + timeoutMillis + " ms）");
             return result;
         }
 
         InspectExecResponse execResult = dockerClient.inspectExecCmd(exec.getId()).exec();
         result.setExitValue(execResult.getExitCode());
-        result.setMessage(stdout.toString());
-        if (StrUtil.isNotBlank(stderr.toString()) || execResult.getExitCode() == null
+        result.setMessage(stdout.getText());
+        if (StrUtil.isNotBlank(stderr.getText()) || execResult.getExitCode() == null
                 || execResult.getExitCode() != 0) {
             result.setErrorMessage(StrUtil.blankToDefault(
-                    stderr.toString(), "程序异常退出，退出码：" + execResult.getExitCode()));
+                    stderr.getText(), "程序异常退出，退出码：" + execResult.getExitCode()));
         }
         return result;
     }
 
-    private void validateRequest(ExecuteCodeRequest request) {
+    void validateRequest(ExecuteCodeRequest request) {
         if (request == null || StrUtil.isBlank(request.getCode())) {
             throw new IllegalArgumentException("代码不能为空");
+        }
+        if (utf8Length(request.getCode()) > limits.getMaxCodeBytes()) {
+            throw new IllegalArgumentException(
+                    "代码超过大小限制（" + limits.getMaxCodeBytes() + " bytes）");
         }
         if (StrUtil.isBlank(request.getLanguage())
                 || !"java".equals(request.getLanguage().toLowerCase(Locale.ROOT))) {
@@ -309,6 +386,21 @@ public class JavaDockerCodeSandbox implements CodeSandbox {
         }
         if (request.getInputList() == null || request.getInputList().isEmpty()) {
             request.setInputList(Collections.singletonList(""));
+        }
+        if (request.getInputList().size() > limits.getMaxTestCases()) {
+            throw new IllegalArgumentException(
+                    "测试用例数量超过限制（" + limits.getMaxTestCases() + "）");
+        }
+        int totalInputBytes = 0;
+        for (String input : request.getInputList()) {
+            int inputBytes = utf8Length(StrUtil.nullToEmpty(input));
+            if (inputBytes > limits.getMaxInputBytesPerCase()) {
+                throw new IllegalArgumentException("单个测试用例输入超过大小限制");
+            }
+            totalInputBytes += inputBytes;
+            if (totalInputBytes > limits.getMaxTotalInputBytes()) {
+                throw new IllegalArgumentException("测试用例输入总量超过大小限制");
+            }
         }
     }
 
@@ -326,11 +418,35 @@ public class JavaDockerCodeSandbox implements CodeSandbox {
         return response;
     }
 
-    private long positiveOrDefault(Long value, long defaultValue) {
-        return value == null || value <= 0 ? defaultValue : value;
+    private boolean acquireExecutionSlot() {
+        try {
+            boolean acquired = executionSlots.tryAcquire(
+                    Math.max(0L, limits.getQueueWaitTimeoutMs()), TimeUnit.MILLISECONDS);
+            if (!acquired) {
+                throw new IllegalStateException("沙箱并发任务已满，请稍后重试");
+            }
+            return true;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("等待沙箱执行资源时被中断", e);
+        }
     }
 
-    private ExecuteCodeResponse getErrorResponse(Throwable e) {
+    private long limitedOrDefault(
+            String resourceName, Long value, long defaultValue, long min, long max) {
+        long resolved = value == null || value <= 0 ? defaultValue : value;
+        if (resolved < min || resolved > max) {
+            throw new IllegalArgumentException(resourceName + "限制必须在 " + min + " 到 " + max + " 之间");
+        }
+        return resolved;
+    }
+
+    private int utf8Length(String value) {
+        return value.getBytes(StandardCharsets.UTF_8).length;
+    }
+
+    private ExecuteCodeResponse getErrorResponse(Throwable e, String requestId) {
+        log.error("代码沙箱执行失败, requestId: {}", requestId, e);
         JudgeInfo judgeInfo = new JudgeInfo();
         judgeInfo.setMessage("代码沙箱内部错误");
         judgeInfo.setTime(0L);
@@ -338,10 +454,21 @@ public class JavaDockerCodeSandbox implements CodeSandbox {
 
         ExecuteCodeResponse response = new ExecuteCodeResponse();
         response.setOutputList(new ArrayList<>());
-        response.setMessage(StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()));
+        response.setMessage("代码沙箱内部错误");
         response.setStatus("2");
         response.setJudgeInfo(judgeInfo);
         return response;
+    }
+
+    private void stopContainerQuietly(DockerClient dockerClient, String containerId) {
+        if (dockerClient == null || containerId == null) {
+            return;
+        }
+        try {
+            dockerClient.stopContainerCmd(containerId).withTimeout(0).exec();
+        } catch (Exception ignored) {
+            // finally 中仍会强制删除容器。
+        }
     }
 
     private void removeContainerQuietly(DockerClient dockerClient, String containerId) {
@@ -377,6 +504,37 @@ public class JavaDockerCodeSandbox implements CodeSandbox {
             dockerClient.removeVolumeCmd(volumeName).exec();
         } catch (Exception ignored) {
             // 清理失败不能覆盖本次执行结果。
+        }
+    }
+
+    private static final class BoundedTextBuffer {
+
+        private final int maxBytes;
+
+        private final java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream();
+
+        private boolean truncated;
+
+        private BoundedTextBuffer(int maxBytes) {
+            this.maxBytes = Math.max(1, maxBytes);
+        }
+
+        private synchronized void append(byte[] bytes) {
+            int remaining = maxBytes - output.size();
+            if (remaining > 0) {
+                output.write(bytes, 0, Math.min(remaining, bytes.length));
+            }
+            if (bytes.length > remaining) {
+                truncated = true;
+            }
+        }
+
+        private synchronized String getText() {
+            return new String(output.toByteArray(), StandardCharsets.UTF_8);
+        }
+
+        private synchronized boolean isTruncated() {
+            return truncated;
         }
     }
 }

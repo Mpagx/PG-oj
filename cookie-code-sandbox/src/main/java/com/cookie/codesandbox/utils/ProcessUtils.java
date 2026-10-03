@@ -5,8 +5,12 @@ import com.cookie.codesandbox.model.ExecuteMessage;
 import org.springframework.util.StopWatch;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.util.concurrent.TimeUnit;
 
 public class ProcessUtils {
+
+    private static final int BUFFER_SIZE = 4096;
 
     /**
      * 执行进程并获取信息
@@ -66,6 +70,100 @@ public class ProcessUtils {
             e.printStackTrace();
         }
         return executeMessage;
+    }
+
+    /**
+     * 在限定时间和输出大小内等待宿主机进程，主要用于 javac 编译。
+     * 读取线程与进程等待并行，避免大量编译错误填满管道后互相阻塞。
+     */
+    public static ExecuteMessage runProcessAndGetMessage(
+            Process process, String opName, long timeoutMillis, int maxOutputBytes) {
+        ExecuteMessage result = new ExecuteMessage();
+        BoundedOutputCollector collector = new BoundedOutputCollector(
+                process.getInputStream(), Math.max(1, maxOutputBytes));
+        Thread reader = new Thread(collector, "sandbox-" + opName + "-output");
+        reader.setDaemon(true);
+
+        StopWatch stopWatch = new StopWatch();
+        stopWatch.start();
+        reader.start();
+        try {
+            boolean completed = process.waitFor(timeoutMillis, TimeUnit.MILLISECONDS);
+            if (!completed) {
+                process.destroyForcibly();
+                process.waitFor(1, TimeUnit.SECONDS);
+                result.setErrorMessage(opName + "超时（限制 " + timeoutMillis + " ms）");
+                return result;
+            }
+
+            reader.join(1000L);
+            result.setExitValue(process.exitValue());
+            String output = collector.getOutput();
+            if (collector.isTruncated()) {
+                result.setErrorMessage(opName + "输出超过限制（" + maxOutputBytes + " bytes）");
+            } else if (process.exitValue() == 0) {
+                result.setMessage(output);
+            } else {
+                result.setErrorMessage(output);
+            }
+            return result;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            process.destroyForcibly();
+            result.setErrorMessage(opName + "被中断");
+            return result;
+        } finally {
+            stopWatch.stop();
+            result.setTime(stopWatch.getLastTaskTimeMillis());
+            try {
+                process.getInputStream().close();
+            } catch (IOException ignored) {
+                // 关闭失败不覆盖执行结果。
+            }
+        }
+    }
+
+    private static final class BoundedOutputCollector implements Runnable {
+
+        private final InputStream inputStream;
+
+        private final int maxBytes;
+
+        private final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+
+        private volatile boolean truncated;
+
+        private BoundedOutputCollector(InputStream inputStream, int maxBytes) {
+            this.inputStream = inputStream;
+            this.maxBytes = maxBytes;
+        }
+
+        @Override
+        public void run() {
+            byte[] buffer = new byte[BUFFER_SIZE];
+            int length;
+            try {
+                while ((length = inputStream.read(buffer)) != -1) {
+                    int remaining = maxBytes - outputStream.size();
+                    if (remaining > 0) {
+                        outputStream.write(buffer, 0, Math.min(remaining, length));
+                    }
+                    if (length > remaining) {
+                        truncated = true;
+                    }
+                }
+            } catch (IOException ignored) {
+                // 进程被超时终止时，流关闭属于正常清理路径。
+            }
+        }
+
+        private String getOutput() {
+            return new String(outputStream.toByteArray(), StandardCharsets.UTF_8);
+        }
+
+        private boolean isTruncated() {
+            return truncated;
+        }
     }
 
     /**

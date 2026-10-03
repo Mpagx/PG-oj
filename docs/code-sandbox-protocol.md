@@ -7,7 +7,10 @@ the main backend.
 ## Authentication
 
 Set the same optional `CODE_SANDBOX_TOKEN` in both processes. When configured,
-requests must include the value in the `X-Sandbox-Token` header.
+requests must include the value in the `X-Sandbox-Token` header. The sandbox
+listens on `127.0.0.1` by default; keep this binding when the backend runs on
+the same host. A token is strongly recommended if the service must be exposed
+through a VM port forward or another network interface.
 
 ## Health check
 
@@ -25,7 +28,9 @@ requests must include the value in the `X-Sandbox-Token` header.
 
 The backend exposes the aggregated result at
 `GET /api/code-sandbox/health` and returns HTTP 503 when the sandbox cannot be
-reached.
+reached. The sandbox health endpoint also verifies that the Docker Engine and
+the configured execution image are available; an HTTP listener by itself is
+not considered healthy.
 
 ## Execute code
 
@@ -64,6 +69,29 @@ are retained for compatibility:
 
 Sandbox status values are `1` (execution completed), `2` (sandbox/system
 failure), and `3` (user-code compilation or runtime failure).
+
+## Runtime hardening
+
+Each execution container runs as UID/GID `65534`, with networking disabled,
+all Linux capabilities dropped, `no-new-privileges`, a read-only root file
+system, a read-only code volume, and a small `noexec` temporary file system.
+Memory, swap, CPU, process count, execution time, source/input size, output
+size, and service concurrency are bounded independently of the limits supplied
+by a request. Compilation also has a timeout and bounded diagnostic output.
+
+The service defaults can be tightened with these environment variables:
+
+- `CODE_SANDBOX_MAX_CODE_BYTES`
+- `CODE_SANDBOX_MAX_TEST_CASES`
+- `CODE_SANDBOX_MAX_INPUT_BYTES_PER_CASE`
+- `CODE_SANDBOX_MAX_TOTAL_INPUT_BYTES`
+- `CODE_SANDBOX_MIN_TIME_LIMIT_MS` / `CODE_SANDBOX_MAX_TIME_LIMIT_MS`
+- `CODE_SANDBOX_MIN_MEMORY_LIMIT_KB` / `CODE_SANDBOX_MAX_MEMORY_LIMIT_KB`
+- `CODE_SANDBOX_MIN_STACK_LIMIT_KB` / `CODE_SANDBOX_MAX_STACK_LIMIT_KB`
+- `CODE_SANDBOX_MAX_OUTPUT_BYTES`
+- `CODE_SANDBOX_COMPILE_TIMEOUT_MS`
+- `CODE_SANDBOX_MAX_CONCURRENT_EXECUTIONS`
+- `CODE_SANDBOX_QUEUE_WAIT_TIMEOUT_MS`
 
 ## Submission state machine
 

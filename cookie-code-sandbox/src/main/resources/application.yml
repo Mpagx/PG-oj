@@ -1,4 +1,6 @@
 server:
+  # 沙箱仅供同机后端调用，禁止直接暴露到局域网或公网。
+  address: 127.0.0.1
   port: 8090
 
 spring:
@@ -7,3 +9,18 @@ spring:
 
 codesandbox:
   token: ${CODE_SANDBOX_TOKEN:}
+  limits:
+    max-code-bytes: ${CODE_SANDBOX_MAX_CODE_BYTES:65536}
+    max-test-cases: ${CODE_SANDBOX_MAX_TEST_CASES:50}
+    max-input-bytes-per-case: ${CODE_SANDBOX_MAX_INPUT_BYTES_PER_CASE:16384}
+    max-total-input-bytes: ${CODE_SANDBOX_MAX_TOTAL_INPUT_BYTES:262144}
+    min-time-limit-ms: ${CODE_SANDBOX_MIN_TIME_LIMIT_MS:100}
+    max-time-limit-ms: ${CODE_SANDBOX_MAX_TIME_LIMIT_MS:10000}
+    min-memory-limit-kb: ${CODE_SANDBOX_MIN_MEMORY_LIMIT_KB:16384}
+    max-memory-limit-kb: ${CODE_SANDBOX_MAX_MEMORY_LIMIT_KB:524288}
+    min-stack-limit-kb: ${CODE_SANDBOX_MIN_STACK_LIMIT_KB:256}
+    max-stack-limit-kb: ${CODE_SANDBOX_MAX_STACK_LIMIT_KB:65536}
+    max-output-bytes: ${CODE_SANDBOX_MAX_OUTPUT_BYTES:1048576}
+    compile-timeout-ms: ${CODE_SANDBOX_COMPILE_TIMEOUT_MS:10000}
+    max-concurrent-executions: ${CODE_SANDBOX_MAX_CONCURRENT_EXECUTIONS:4}
+    queue-wait-timeout-ms: ${CODE_SANDBOX_QUEUE_WAIT_TIMEOUT_MS:1000}
