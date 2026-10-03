@@ -11,6 +11,7 @@ import AddQuestionView from "@/views/question/AddQuestionView.vue";
 import ManageQuestionView from "@/views/question/ManageQuestionView.vue";
 import QuestionsView from "@/views/question/QuestionsView.vue";
 import ViewQuestionView from "@/views/question/ViewQuestionView.vue";
+import QuestionSubmitDetailView from "@/views/question/QuestionSubmitDetailView.vue";
 
 export const routes: Array<RouteRecordRaw> = [
   {
@@ -42,6 +43,16 @@ export const routes: Array<RouteRecordRaw> = [
     path: "/view/question/:id",
     name: "在线题目",
     component: ViewQuestionView,
+    props: true,
+    meta: {
+      access: ACCESS_ENUM.USER,
+      hideInMenu: true,
+    },
+  },
+  {
+    path: "/submission/:id",
+    name: "提交详情",
+    component: QuestionSubmitDetailView,
     props: true,
     meta: {
       access: ACCESS_ENUM.USER,

@@ -65,7 +65,13 @@
           :handle-change="changeCode"
         />
         <a-divider :size="0" />
-        <a-button type="primary" style="min-width: 200px" @click="doSubmit">
+        <a-button
+          type="primary"
+          style="min-width: 200px"
+          :loading="submitting"
+          :disabled="submitting"
+          @click="doSubmit"
+        >
           提交代码
         </a-button>
       </a-col>
@@ -74,9 +80,8 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, watchEffect, withDefaults, defineProps } from "vue";
+import { defineProps, onMounted, ref, withDefaults } from "vue";
 import {
-  Question,
   QuestionControllerService,
   QuestionSubmitAddRequest,
   QuestionSubmitControllerService,
@@ -87,6 +92,7 @@ import CodeEditor from "@/components/CodeEditor.vue";
 import MdViewer from "@/components/MdViewer.vue";
 import { detectCodeLanguage } from "@/utils/codeLanguage";
 import { QUESTION_SUBMIT_LANGUAGES } from "@/constants/questionSubmitLanguage";
+import { useRouter } from "vue-router";
 
 interface Props {
   id: string;
@@ -96,6 +102,8 @@ const props = withDefaults(defineProps<Props>(), {
   id: () => "",
 });
 const question = ref<QuestionVO>();
+const submitting = ref(false);
+const router = useRouter();
 
 const loadData = async () => {
   const res = await QuestionControllerService.getQuestionVoByIdUsingGet(
@@ -120,15 +128,29 @@ const doSubmit = async () => {
   if (!question.value?.id) {
     return;
   }
+  if (!form.value.code?.trim()) {
+    message.warning("请先填写代码");
+    return;
+  }
 
-  const res = await QuestionSubmitControllerService.doQuestionSubmitUsingPost({
-    ...form.value,
-    questionId: question.value.id,
-  });
-  if (res.code === 0) {
-    message.success("提交成功");
-  } else {
-    message.error("提交失败," + res.message);
+  submitting.value = true;
+  try {
+    const res = await QuestionSubmitControllerService.doQuestionSubmitUsingPost(
+      {
+        ...form.value,
+        questionId: question.value.id,
+      }
+    );
+    if (res.code === 0 && res.data) {
+      message.success("提交成功，正在判题");
+      await router.push(`/submission/${res.data}`);
+    } else {
+      message.error("提交失败，" + (res.message || "请稍后重试"));
+    }
+  } catch (error) {
+    message.error("提交失败，请检查后端服务");
+  } finally {
+    submitting.value = false;
   }
 };
 

@@ -4,12 +4,35 @@
 /* eslint-disable */
 import type { BaseResponse_long_ } from '../models/BaseResponse_long_';
 import type { BaseResponse_Page_QuestionSubmitVO_ } from '../models/BaseResponse_Page_QuestionSubmitVO_';
+import type { BaseResponse_QuestionSubmitVO_ } from '../models/BaseResponse_QuestionSubmitVO_';
 import type { QuestionSubmitAddRequest } from '../models/QuestionSubmitAddRequest';
 import type { QuestionSubmitQueryRequest } from '../models/QuestionSubmitQueryRequest';
 import type { CancelablePromise } from '../core/CancelablePromise';
 import { OpenAPI } from '../core/OpenAPI';
 import { request as __request } from '../core/request';
 export class QuestionSubmitControllerService {
+    /**
+     * getQuestionSubmitById
+     * @param id id
+     * @returns BaseResponse_QuestionSubmitVO_ OK
+     * @throws ApiError
+     */
+    public static getQuestionSubmitByIdUsingGet(
+        id: number,
+    ): CancelablePromise<BaseResponse_QuestionSubmitVO_ | any> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/question_submit/get',
+            query: {
+                'id': id,
+            },
+            errors: {
+                401: `Unauthorized`,
+                403: `Forbidden`,
+                404: `Not Found`,
+            },
+        });
+    }
     /**
      * doQuestionSubmit
      * @param questionSubmitAddRequest questionSubmitAddRequest

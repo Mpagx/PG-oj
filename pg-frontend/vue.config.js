@@ -3,6 +3,7 @@ const MonacoWebpackPlugin = require("monaco-editor-webpack-plugin");
 module.exports = {
   devServer: {
     port: 8080,
+    historyApiFallback: true,
     proxy: {
       "/api": {
         target: "http://localhost:8121",
