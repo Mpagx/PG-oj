@@ -40,6 +40,7 @@ jobs:
         options: --health-cmd="mysqladmin ping --silent" --health-interval=10s --health-timeout=5s --health-retries=10
     env:
       DOCKER_HOST: unix:///var/run/docker.sock
+      SANDBOX_IMAGE: eclipse-temurin:8-jdk-alpine@sha256:722702cc1316544012854d01f762cc033959fb175470a61856355f8f65769a2b
       E2E_DB_URL: jdbc:mysql://127.0.0.1:3306/poj_e2e_ci
       E2E_DB_USERNAME: root
       E2E_DB_PASSWORD: e2e-isolated-password
@@ -48,13 +49,14 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: '17', cache: maven }
-      - run: docker pull openjdk:8-alpine
+      - name: Pull Java 8 sandbox image
+        run: docker pull "$SANDBOX_IMAGE"
       - name: Real Docker security regression
         working-directory: pg-backend
-        run: bash mvnw -B -f ../cookie-code-sandbox/pom.xml -Dsandbox.docker.tests=true verify
+        run: bash mvnw -B -f ../cookie-code-sandbox/pom.xml -Dsandbox.docker.tests=true -Dcodesandbox.docker.image="$SANDBOX_IMAGE" verify
       - name: Start sandbox
         run: |
-          java -jar cookie-code-sandbox/target/cookie-code-sandbox-0.0.1-SNAPSHOT.jar > /tmp/poj-sandbox.log 2>&1 &
+          java -Dcodesandbox.docker.image="$SANDBOX_IMAGE" -jar cookie-code-sandbox/target/cookie-code-sandbox-0.0.1-SNAPSHOT.jar > /tmp/poj-sandbox.log 2>&1 &
           for i in $(seq 1 30); do
             if curl -fsS -H "X-Sandbox-Token: $CODE_SANDBOX_TOKEN" http://127.0.0.1:8090/health; then exit 0; fi
             sleep 2
