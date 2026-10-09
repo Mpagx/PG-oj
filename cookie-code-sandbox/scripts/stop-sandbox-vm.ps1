@@ -1,5 +1,5 @@
-param(
-    [string]$VmPath = 'D:\compile\compile\VMproject\Ubuntu 64 位.vmx',
+﻿param(
+    [string]$VmPath = $(if ($env:POJ_SANDBOX_VM_PATH) { $env:POJ_SANDBOX_VM_PATH } else { 'D:\compile\compile\VMproject\Ubuntu 64 位.vmx' }),
     [string]$SshKeyName = 'poj_sandbox_vm'
 )
 

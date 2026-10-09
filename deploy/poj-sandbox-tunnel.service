@@ -1,0 +1,17 @@
+[Unit]
+Description=Private SSH connection to sandbox VM
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=poj
+EnvironmentFile=/etc/poj/tunnel.env
+ExecStart=/usr/bin/ssh -N -o BatchMode=yes -o ExitOnForwardFailure=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=/etc/poj/sandbox_known_hosts -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -i /etc/poj/sandbox_ed25519 -L 127.0.0.1:8090:127.0.0.1:8090 ${SANDBOX_SSH_TARGET}
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

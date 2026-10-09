@@ -5,9 +5,10 @@
  * @returns 是否有权限
  */
 import ACCESS_ENUM from "@/access/accessEnum";
+import type { LoginUserVO } from "@/generated";
 
 const checkAccess = (
-  loginUser: any,
+  loginUser: LoginUserVO | undefined,
   needAccess: string = ACCESS_ENUM.NOT_LOGIN
 ) => {
   // 获取当前登录用户具有的权限（如果没有 loginUser，则表示未登录）

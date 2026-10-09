@@ -13,14 +13,10 @@ import lombok.Data;
 public class UserAddRequest implements Serializable {
 
     /**
-     * 用户昵称
+     * 唯一用户名
      */
     private String userName;
-
-    /**
-     * 账号
-     */
-    private String userAccount;
+    private String userPassword;
 
     /**
      * 用户头像

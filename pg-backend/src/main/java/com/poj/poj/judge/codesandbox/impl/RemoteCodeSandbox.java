@@ -28,6 +28,8 @@ public class RemoteCodeSandbox implements CodeSandbox {
 
     private final RestTemplate restTemplate;
 
+    private RestTemplate healthRestTemplate;
+
     private final String baseUrl;
 
     private final String token;
@@ -45,10 +47,13 @@ public class RemoteCodeSandbox implements CodeSandbox {
             @Value("${codesandbox.connect-timeout-ms:2000}") int connectTimeoutMs,
             @Value("${codesandbox.read-timeout-ms:10000}") int readTimeoutMs) {
         this(createRestTemplate(connectTimeoutMs, readTimeoutMs), baseUrl, token);
+        // Readiness must not inherit the long execution timeout (up to 660 seconds).
+        this.healthRestTemplate = createRestTemplate(Math.min(connectTimeoutMs, 2000), 3000);
     }
 
     public RemoteCodeSandbox(RestTemplate restTemplate, String baseUrl, String token) {
         this.restTemplate = restTemplate;
+        this.healthRestTemplate = restTemplate;
         this.baseUrl = StringUtils.removeEnd(baseUrl, "/");
         this.token = token;
     }
@@ -72,7 +77,9 @@ public class RemoteCodeSandbox implements CodeSandbox {
             if (!Objects.equals(executeCodeRequest.getRequestId(), body.getRequestId())) {
                 throw new IllegalStateException("代码沙箱响应 requestId 不匹配");
             }
+            if (!java.util.Arrays.asList("1", "2", "3").contains(body.getStatus())) throw new IllegalStateException("沙箱状态无效");
             return body;
+
         } catch (RestClientException e) {
             throw new IllegalStateException("调用代码沙箱失败", e);
         }
@@ -80,7 +87,7 @@ public class RemoteCodeSandbox implements CodeSandbox {
 
     public SandboxHealthResponse health() {
         try {
-            ResponseEntity<SandboxHealthResponse> response = restTemplate.exchange(
+            ResponseEntity<SandboxHealthResponse> response = healthRestTemplate.exchange(
                     baseUrl + "/health", HttpMethod.GET,
                     new HttpEntity<>(headers()), SandboxHealthResponse.class);
             SandboxHealthResponse body = response.getBody();

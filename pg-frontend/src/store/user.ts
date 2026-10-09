@@ -1,69 +1,38 @@
-// initial state
-import { StoreOptions } from "vuex";
+import { Module } from "vuex";
 import ACCESS_ENUM from "@/access/accessEnum";
-import { UserControllerService } from "@/generated";
+import { UserControllerService, LoginUserVO } from "@/generated";
+
+export interface UserState {
+  loginUser: LoginUserVO;
+  initialized: boolean;
+}
+const anonymous = (): LoginUserVO => ({
+  userName: "未登录",
+  userRole: ACCESS_ENUM.NOT_LOGIN,
+});
+let pending: Promise<LoginUserVO> | undefined;
 
 export default {
   namespaced: true,
-
-  // user.ts。登录后刷新状态丢失问题
-  state: () => ({
-    loginUser: (() => {
-      const raw = localStorage.getItem("loginUser");
-      if (!raw) {
-        return {
-          userAccount: "未登录",
-          userRole: ACCESS_ENUM.NOT_LOGIN,
-        };
-      }
-      try {
-        return JSON.parse(raw);
-      } catch {
-        // 脏数据兜底
-        return {
-          userAccount: "未登录",
-          userRole: ACCESS_ENUM.NOT_LOGIN,
-        };
-      }
-    })(),
-  }),
-
+  state: (): UserState => ({ loginUser: anonymous(), initialized: false }),
   getters: {},
   actions: {
     async getLoginUser({ commit }) {
-      const res = await UserControllerService.getLoginUserUsingGet();
-      if (res.code === 0 && res.data) {
-        commit("updateUser", res.data);
-      } else {
-        commit("updateUser", {
-          userAccount: "未登录",
-          userRole: ACCESS_ENUM.NOT_LOGIN,
-        });
+      if (!pending) {
+        pending = UserControllerService.getLoginUserUsingGet()
+          .then((res) => (res.code === 0 && res.data ? res.data : anonymous()))
+          .catch(() => anonymous())
+          .finally(() => {
+            pending = undefined;
+          });
       }
+      commit("updateUser", await pending);
     },
   },
-
-  // actions: {
-  //   async getLoginUser({ commit, state }, payload) {
-  //     const res = await UserControllerService.getLoginUserUsingGet();
-  //
-  //     if (res.code === 0) {
-  //       commit("updateUser", res.data);
-  //     } else {
-  //       commit("updateUser", {
-  //         ...state.loginUser,
-  //         userRole: ACCESS_ENUM.NOT_LOGIN,
-  //       });
-  //     }
-  //
-  //     // todo 改为从远程请求获取登录信息
-  //   },
-  // },
-
   mutations: {
-    updateUser(state, payload) {
+    updateUser(state, payload: LoginUserVO) {
       state.loginUser = payload;
-      localStorage.setItem("loginUser", JSON.stringify(payload));
+      state.initialized = true;
     },
   },
-} as StoreOptions<any>;
+} as Module<UserState, { user: UserState }>;

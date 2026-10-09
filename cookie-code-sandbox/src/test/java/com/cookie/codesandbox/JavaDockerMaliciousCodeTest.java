@@ -127,8 +127,9 @@ class JavaDockerMaliciousCodeTest {
                         + " public static void main(String[] args) throws Exception {"
                         + " Path state = Paths.get(\"/tmp/previous-case\");"
                         + " if (Files.exists(state)) throw new IllegalStateException(\"state leaked\");"
-                        + " Files.write(state, args[0].getBytes(\"UTF-8\"));"
-                        + " System.out.print(args[0]); } }",
+                        + " String input=new java.util.Scanner(System.in).next();"
+                        + " Files.write(state, input.getBytes(\"UTF-8\"));"
+                        + " System.out.print(input); } }",
                 Arrays.asList("first", "second"), 1500L, 131_072L);
 
         assertEquals("1", response.getStatus(), response.getMessage());

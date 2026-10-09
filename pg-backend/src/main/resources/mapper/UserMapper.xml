@@ -10,8 +10,13 @@
         <result property="unionId" column="unionId" jdbcType="VARCHAR"/>
         <result property="mpOpenId" column="mpOpenId" jdbcType="VARCHAR"/>
         <result property="userName" column="userName" jdbcType="VARCHAR"/>
+        <result property="userPassword" column="userPassword" jdbcType="VARCHAR"/>
         <result property="userAvatar" column="userAvatar" jdbcType="VARCHAR"/>
         <result property="userProfile" column="userProfile" jdbcType="VARCHAR"/>
+        <result property="userNameUpdateTime" column="userNameUpdateTime" jdbcType="TIMESTAMP"/>
+        <result property="userEmail" column="userEmail" jdbcType="VARCHAR"/>
+        <result property="emailVerifiedAt" column="emailVerifiedAt" jdbcType="TIMESTAMP"/>
+        <result property="passwordChangedAt" column="passwordChangedAt" jdbcType="TIMESTAMP"/>
         <result property="userRole" column="userRole" jdbcType="VARCHAR"/>
         <result property="createTime" column="createTime" jdbcType="TIMESTAMP"/>
         <result property="updateTime" column="updateTime" jdbcType="TIMESTAMP"/>
@@ -19,8 +24,9 @@
     </resultMap>
 
     <sql id="Base_Column_List">
-        id,unionId,mpOpenId,
-        userName,userAvatar,userProfile,
+        id,userPassword,unionId,mpOpenId,
+        userName,userAvatar,userProfile,userNameUpdateTime,
+        userEmail,emailVerifiedAt,passwordChangedAt,
         userRole,createTime,updateTime,isDelete
     </sql>
 </mapper>

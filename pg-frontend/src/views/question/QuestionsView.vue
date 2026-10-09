@@ -1,5 +1,24 @@
 <template>
   <div id="questionsView">
+    <section
+      v-if="showGuestGuide"
+      class="guest-guide"
+      aria-label="登录注册提示"
+    >
+      <div class="guide-copy">
+        <span class="guide-eyebrow">WELCOME TO COOKIE OJ</span>
+        <h1>登录后开始你的做题之旅</h1>
+        <p>
+          你可以先浏览公开题目；登录或注册后即可运行代码、正式提交，并保存做题记录与通过数据。
+        </p>
+      </div>
+      <div class="guide-actions">
+        <a-button type="primary" size="large" @click="goLogin">
+          立即登录
+        </a-button>
+        <a-button size="large" @click="goRegister">注册账号</a-button>
+      </div>
+    </section>
     <a-card :bordered="false" class="page-card">
       <template #title>题目列表</template>
       <a-form :model="searchParams" layout="inline">
@@ -13,8 +32,19 @@
             @blur="handleBlur"
           />
         </a-form-item>
+        <a-form-item field="difficulty" label="难度" style="min-width: 160px">
+          <a-select
+            v-model="searchParams.difficulty"
+            placeholder="全部难度"
+            allow-clear
+          >
+            <a-option value="EASY">简单</a-option>
+            <a-option value="MEDIUM">中等</a-option>
+            <a-option value="HARD">困难</a-option>
+          </a-select>
+        </a-form-item>
         <a-form-item>
-          <a-button type="primary" @click="doSubmit">提交</a-button>
+          <a-button type="primary" @click="doSubmit">搜索</a-button>
         </a-form-item>
       </a-form>
       <a-divider :size="0" />
@@ -40,6 +70,11 @@
             </a-tag>
           </a-space>
         </template>
+        <template #difficulty="{ record }">
+          <a-tag :color="difficultyMeta(record.difficulty).color">{{
+            difficultyMeta(record.difficulty).label
+          }}</a-tag>
+        </template>
         <template #acceptedRate="{ record }">
           {{
             record.submitNum
@@ -48,7 +83,7 @@
           }}%
         </template>
         <template #createTime="{ record }">
-          {{ moment(record.createTime).format("YYYY-MM-DD") }}
+          {{ formatTime(record.createTime) }}
         </template>
         <template #optional="{ record }">
           <a-space>
@@ -63,32 +98,29 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
-import {
-  Page_Question_,
-  Question,
-  QuestionControllerService,
-} from "@/generated";
-import { watchEffect } from "vue";
+import { computed, onMounted, ref } from "vue";
+import { QuestionVO, QuestionControllerService } from "@/generated";
 import message from "@arco-design/web-vue/es/message";
-import * as querystring from "querystring";
 import { useRouter } from "vue-router";
-import { reactive, watch } from "vue";
-import moment from "moment";
+import { useStore } from "vuex";
+import { watch } from "vue";
+import { formatDate as formatTime } from "@/utils/date";
 import { QuestionQueryRequest } from "@/generated";
+import ACCESS_ENUM from "@/access/accessEnum";
 
 const tableRef = ref();
 
-const dataList = ref([]);
+const dataList = ref<QuestionVO[]>([]);
 const total = ref(0);
 const searchParams = ref<QuestionQueryRequest>({
   title: "",
+  difficulty: undefined,
   tags: [] as string[],
   pageSize: 10,
   current: 1,
 });
 watch(
-  () => ({ ...searchParams }),
+  () => [searchParams.value.current, searchParams.value.pageSize],
   () => {
     loadData();
   },
@@ -108,9 +140,6 @@ const loadData = async () => {
 /**
  * 监听 searchParams 变量，改变时触发页面的重新加载
  */
-watchEffect(() => {
-  loadData();
-});
 
 /**
  * 页面加载时，请求数据
@@ -131,6 +160,11 @@ const columns = [
     dataIndex: "title",
   },
   {
+    title: "难度",
+    slotName: "difficulty",
+    width: 90,
+  },
+  {
     title: "标签",
     slotName: "tags",
   },
@@ -147,6 +181,12 @@ const columns = [
     slotName: "optional",
   },
 ];
+const difficultyMeta = (difficulty?: string) =>
+  difficulty === "EASY"
+    ? { label: "简单", color: "green" }
+    : difficulty === "HARD"
+    ? { label: "困难", color: "red" }
+    : { label: "中等", color: "orange" };
 const onPageChange = (page: number) => {
   searchParams.value = {
     ...searchParams.value,
@@ -166,8 +206,18 @@ const onPageChange = (page: number) => {
 // };
 
 const router = useRouter();
+const store = useStore();
+const showGuestGuide = computed(
+  () =>
+    store.state.user.initialized &&
+    store.state.user.loginUser?.userRole === ACCESS_ENUM.NOT_LOGIN
+);
 
-const toQuestionPage = (question: Question) => {
+const goLogin = () =>
+  router.push({ path: "/user/login", query: { redirect: "/" } });
+const goRegister = () => router.push("/user/register");
+
+const toQuestionPage = (question: QuestionVO) => {
   router.push({
     path: `/view/question/${question.id}`,
   });
@@ -182,5 +232,73 @@ const doSubmit = () => {
 <style scoped>
 #questionsView {
   width: 100%;
+}
+
+.guest-guide {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 32px;
+  margin-bottom: 20px;
+  padding: 28px 32px;
+  overflow: hidden;
+  border: 1px solid rgba(22, 93, 255, 0.14);
+  border-radius: 14px;
+  background: radial-gradient(
+      circle at 88% 18%,
+      rgba(22, 93, 255, 0.16),
+      transparent 32%
+    ),
+    linear-gradient(135deg, #ffffff 0%, #f2f7ff 100%);
+  box-shadow: 0 10px 30px rgba(22, 93, 255, 0.08);
+}
+
+.guide-copy {
+  max-width: 720px;
+}
+
+.guide-eyebrow {
+  color: #165dff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+
+.guide-copy h1 {
+  margin: 8px 0;
+  color: #1d2129;
+  font-size: 26px;
+  line-height: 1.35;
+}
+
+.guide-copy p {
+  margin: 0;
+  color: #4e5969;
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.guide-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 12px;
+}
+
+@media (max-width: 720px) {
+  .guest-guide {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 20px;
+    padding: 24px;
+  }
+
+  .guide-actions {
+    width: 100%;
+  }
+
+  .guide-actions :deep(.arco-btn) {
+    flex: 1;
+  }
 }
 </style>

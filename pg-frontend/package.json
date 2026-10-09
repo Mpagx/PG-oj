@@ -5,7 +5,9 @@
   "scripts": {
     "serve": "vue-cli-service serve",
     "build": "vue-cli-service build",
-    "lint": "vue-cli-service lint"
+    "lint": "vue-cli-service lint",
+    "test:unit": "node scripts/test-drafts.cjs && node scripts/test-question-admin.cjs && node scripts/test-profile.cjs",
+    "check:bundle": "node scripts/check-bundle.cjs"
   },
   "dependencies": {
     "@ant-design/icons-vue": "^7.0.1",
@@ -14,6 +16,7 @@
     "@bytemd/vue-next": "^1.22.0",
     "axios": "^1.19.0",
     "core-js": "^3.8.3",
+    "highlight.js": "^11.12.0",
     "moment": "^2.30.1",
     "monaco-editor": "^0.31.0",
     "vue": "^3.2.13",

@@ -35,7 +35,10 @@
           自动刷新已暂停，请点击“刷新结果”继续查询。
         </a-alert>
         <a-alert
-          v-if="submission.judgeInfo?.detail"
+          v-if="
+            submission.judgeInfo?.detail &&
+            submission.judgeInfo?.message !== '编译错误'
+          "
           :type="verdictTone === 'success' ? 'success' : 'warning'"
           show-icon
         >

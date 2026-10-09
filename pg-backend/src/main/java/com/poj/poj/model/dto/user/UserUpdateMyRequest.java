@@ -12,9 +12,7 @@ import lombok.Data;
 @Data
 public class UserUpdateMyRequest implements Serializable {
 
-    /**
-     * 用户昵称
-     */
+    /** 唯一用户名；与当前值不同时执行修改，30 天内只能修改一次。 */
     private String userName;
 
     /**

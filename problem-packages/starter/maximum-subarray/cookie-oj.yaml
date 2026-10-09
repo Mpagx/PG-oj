@@ -1,0 +1,11 @@
+format: cookie-oj
+version: 1
+title: 最大连续子数组和
+difficulty: MEDIUM
+tags: [动态规划, 数组]
+source: Cookie OJ 原创
+license: CC BY 4.0
+limits:
+  timeLimit: 1000
+  memoryLimit: 262144
+  stackLimit: 65536

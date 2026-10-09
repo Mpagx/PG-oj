@@ -31,6 +31,19 @@ public class QuestionVO implements Serializable {
      */
     private String title;
 
+    private String difficulty;
+
+    private String status;
+
+    /** 题目来源及授权信息（标准答案不会通过公开 VO 暴露）。 */
+    private String source;
+
+    private String sourceUrl;
+
+    private String license;
+
+    private String packageType;
+
     /**
      * 内容
      */
@@ -55,16 +68,6 @@ public class QuestionVO implements Serializable {
      * 判题配置（json 对象）
      */
     private JudgeConfig judgeConfig;
-
-    /**
-     * 点赞数
-     */
-    private Integer thumbNum;
-
-    /**
-     * 收藏数
-     */
-    private Integer favourNum;
 
     /**
      * 创建用户 id

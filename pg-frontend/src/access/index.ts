@@ -11,8 +11,8 @@ router.beforeEach(
     from: RouteLocationNormalized,
     next: NavigationGuardNext
   ) => {
-    console.log("登陆用户信息", store.state.user.loginUser);
-
+    if (!store.state.user.initialized)
+      await store.dispatch("user/getLoginUser");
     const loginUser = store.state.user.loginUser;
     // 如果之前没登陆过，自动登录
     // if (!loginUser || !loginUser.userRole) {
@@ -26,7 +26,11 @@ router.beforeEach(
     // 要跳转的页面必须要登陆
     if (needAccess !== ACCESS_ENUM.NOT_LOGIN) {
       // 如果没登陆，跳转到登录页面
-      if (!loginUser || !loginUser.userRole) {
+      if (
+        !loginUser ||
+        !loginUser.userRole ||
+        loginUser.userRole === ACCESS_ENUM.NOT_LOGIN
+      ) {
         next(`/user/login?redirect=${to.fullPath}`);
         return;
       }

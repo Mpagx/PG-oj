@@ -34,6 +34,7 @@ public class ExecuteCodeResponse {
      * 执行状态
      */
     private String status;
+    private String verdict;
 
     /**
      * 判题信息

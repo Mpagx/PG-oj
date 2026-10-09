@@ -1,0 +1,11 @@
+format: cookie-oj
+version: 1
+title: N 个整数的和
+difficulty: EASY
+tags: [入门, 数组]
+source: Cookie OJ 原创
+license: CC BY 4.0
+limits:
+  timeLimit: 1000
+  memoryLimit: 262144
+  stackLimit: 65536

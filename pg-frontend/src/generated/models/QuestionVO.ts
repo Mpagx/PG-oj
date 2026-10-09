@@ -8,12 +8,16 @@ export type QuestionVO = {
     acceptedNum?: number;
     content?: string;
     createTime?: string;
-    favourNum?: number;
+    difficulty?: string;
     id?: number;
     judgeConfig?: JudgeConfig;
+    license?: string;
+    packageType?: string;
+    source?: string;
+    sourceUrl?: string;
     submitNum?: number;
+    status?: string;
     tags?: Array<string>;
-    thumbNum?: number;
     title?: string;
     updateTime?: string;
     userId?: number;

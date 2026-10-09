@@ -3,11 +3,14 @@ package com.poj.poj.service;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.poj.poj.model.dto.questionsubmit.QuestionSubmitAddRequest;
+import com.poj.poj.model.dto.questionsubmit.CustomTestRequest;
 import com.poj.poj.model.dto.questionsubmit.QuestionSubmitQueryRequest;
 import com.poj.poj.model.entity.QuestionSubmit;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.poj.poj.model.entity.User;
 import com.poj.poj.model.vo.QuestionSubmitVO;
+import com.poj.poj.model.vo.CustomTestResultVO;
+import com.poj.poj.model.vo.UserSubmissionOverviewVO;
 
 /**
 * @author Legion
@@ -24,6 +27,9 @@ public interface QuestionSubmitService extends IService<QuestionSubmit> {
      * @return
      */
     long doQuestionSubmit(QuestionSubmitAddRequest questionSubmitAddRequest, User loginUser);
+
+    /** Execute one caller-provided input without creating a submission record. */
+    CustomTestResultVO runCustomTest(CustomTestRequest request, User loginUser);
 
     /**
      * 获取查询条件
@@ -50,5 +56,7 @@ public interface QuestionSubmitService extends IService<QuestionSubmit> {
      * @return
      */
     Page<QuestionSubmitVO> getQuestionSubmitVOPage(Page<QuestionSubmit> questionSubmitPage, User loginUser);
+
+    UserSubmissionOverviewVO getUserSubmissionOverview(long userId);
 }
 

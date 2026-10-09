@@ -3,7 +3,7 @@
 /* tslint:disable */
 /* eslint-disable */
 export type UserLoginRequest = {
-    userAccount?: string;
-    userPassword?: string;
+  captchaAnswer?: string;
+  userName?: string;
+  userPassword?: string;
 };
-

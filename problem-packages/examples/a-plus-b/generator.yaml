@@ -1,0 +1,6 @@
+type: integer-pair
+count: 20
+min: -1000000000
+max: 1000000000
+operation: sum
+seed: 20261008

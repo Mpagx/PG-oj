@@ -19,7 +19,7 @@ public class LoginUserVO implements Serializable {
     private Long id;
 
     /**
-     * 用户昵称
+     * 唯一用户名，也是登录标识
      */
     private String userName;
 
@@ -32,6 +32,14 @@ public class LoginUserVO implements Serializable {
      * 用户简介
      */
     private String userProfile;
+
+    /** 用于前端展示下一次允许修改用户名的时间。 */
+    private Date userNameUpdateTime;
+
+    /** 仅当前登录用户可见。 */
+    private String userEmail;
+
+    private Date emailVerifiedAt;
 
     /**
      * 用户角色：user/admin/ban

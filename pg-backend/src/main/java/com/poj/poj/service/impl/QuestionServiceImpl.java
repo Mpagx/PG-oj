@@ -48,11 +48,15 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
         String title = question.getTitle();
+        String difficulty = question.getDifficulty();
+        String status = question.getStatus();
         String content = question.getContent();
         String tags = question.getTags();
         String answer = question.getAnswer();
         String judgeCase = question.getJudgeCase();
         String judgeConfig = question.getJudgeConfig();
+        if (add || judgeCase != null) com.poj.poj.judge.QuestionJudgeValidator.validateCases(judgeCase);
+        if (add || judgeConfig != null) com.poj.poj.judge.QuestionJudgeValidator.validateConfig(judgeConfig);
         // 创建时，参数不能为空
         if (add) {
             ThrowUtils.throwIf(StringUtils.isAnyBlank(title, content, tags), ErrorCode.PARAMS_ERROR);
@@ -60,6 +64,14 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
         // 有参数则校验
         if (StringUtils.isNotBlank(title) && title.length() > 80) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "标题过长");
+        }
+        if (StringUtils.isNotBlank(difficulty)
+                && !java.util.Set.of("EASY", "MEDIUM", "HARD").contains(difficulty)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "题目难度无效");
+        }
+        if (StringUtils.isNotBlank(status)
+                && !java.util.Set.of("DRAFT", "PUBLISHED").contains(status)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "题目状态无效");
         }
         if (StringUtils.isNotBlank(content) && content.length() > 8192) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "内容过长");
@@ -91,12 +103,16 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
 
         Long id = questionQueryRequest.getId();
         String title = questionQueryRequest.getTitle();
+        String difficulty = questionQueryRequest.getDifficulty();
+        String status = questionQueryRequest.getStatus();
         List<String> tags = questionQueryRequest.getTags();
         Long userId = questionQueryRequest.getUserId();
 
         // 精确查询
         queryWrapper.eq(id != null, "id", id);
         queryWrapper.eq(userId != null, "userId", userId);
+        queryWrapper.eq(StringUtils.isNotBlank(difficulty), "difficulty", difficulty);
+        queryWrapper.eq(StringUtils.isNotBlank(status), "status", status);
 
         // 模糊查询
         queryWrapper.like(StringUtils.isNotBlank(title), "title", title);

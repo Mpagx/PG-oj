@@ -1,0 +1,11 @@
+format: cookie-oj
+version: 1
+title: 判断回文字符串
+difficulty: EASY
+tags: [字符串, 双指针]
+source: Cookie OJ 原创
+license: CC BY 4.0
+limits:
+  timeLimit: 1000
+  memoryLimit: 262144
+  stackLimit: 65536

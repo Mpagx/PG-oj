@@ -17,6 +17,7 @@ import com.poj.poj.model.vo.QuestionVO;
 import com.poj.poj.service.QuestionService;
 import com.poj.poj.service.UserService;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
 import org.springframework.web.bind.annotation.*;
 
@@ -43,6 +44,13 @@ public class QuestionController {
     private UserService userService;
 
     private final static Gson GSON = new Gson();
+    @GetMapping("/get/admin")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    public BaseResponse<Question> getQuestionForAdmin(@RequestParam long id) {
+        Question question = questionService.getById(id);
+        ThrowUtils.throwIf(question == null, ErrorCode.NOT_FOUND_ERROR);
+        return ResultUtils.success(question);
+    }
 
     // region 增删改查
 
@@ -54,12 +62,15 @@ public class QuestionController {
      * @return
      */
     @PostMapping("/add")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
     public BaseResponse<Long> addQuestion(@RequestBody QuestionAddRequest questionAddRequest, HttpServletRequest request) {
         if (questionAddRequest == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
         Question question = new Question();
         BeanUtils.copyProperties(questionAddRequest, question);
+        if (StringUtils.isBlank(question.getDifficulty())) question.setDifficulty("MEDIUM");
+        if (StringUtils.isBlank(question.getStatus())) question.setStatus("DRAFT");
         List<String> tags = questionAddRequest.getTags();
         if (tags != null) {
             question.setTags(GSON.toJson(tags));
@@ -75,8 +86,6 @@ public class QuestionController {
         questionService.validQuestion(question, true);
         User loginUser = userService.getLoginUser(request);
         question.setUserId(loginUser.getId());
-        question.setFavourNum(0);
-        question.setThumbNum(0);
         boolean result = questionService.save(question);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
         long newQuestionId = question.getId();
@@ -140,6 +149,7 @@ public class QuestionController {
         // 判断是否存在
         Question oldQuestion = questionService.getById(id);
         ThrowUtils.throwIf(oldQuestion == null, ErrorCode.NOT_FOUND_ERROR);
+        validatePublishCandidate(question, oldQuestion);
         boolean result = questionService.updateById(question);
         return ResultUtils.success(result);
     }
@@ -159,6 +169,9 @@ public class QuestionController {
         if (question == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND_ERROR);
         }
+        if (!"PUBLISHED".equals(question.getStatus()) && !userService.isAdmin(request)) {
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR);
+        }
         return ResultUtils.success(questionService.getQuestionVO(question, request));
     }
 
@@ -173,9 +186,13 @@ public class QuestionController {
     public BaseResponse<Page<QuestionVO>> listQuestionVOByPage(
             @RequestBody QuestionQueryRequest questionQueryRequest,
             HttpServletRequest request) {
+        if (questionQueryRequest == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
         long current = questionQueryRequest.getCurrent();
         long size = questionQueryRequest.getPageSize();
-        ThrowUtils.throwIf(size > 20, ErrorCode.PARAMS_ERROR);
+        ThrowUtils.throwIf(current < 1 || size < 1 || size > 20, ErrorCode.PARAMS_ERROR);
+        questionQueryRequest.setStatus("PUBLISHED");
         Page<Question> questionPage = questionService.page(
                 new Page<>(current, size),
                 questionService.getQueryWrapper(questionQueryRequest)
@@ -218,8 +235,12 @@ public class QuestionController {
     @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
     public BaseResponse<Page<Question>> listQuestionByPage(@RequestBody QuestionQueryRequest questionQueryRequest,
                                                            HttpServletRequest request) {
+        if (questionQueryRequest == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
         long current = questionQueryRequest.getCurrent();
         long size = questionQueryRequest.getPageSize();
+        ThrowUtils.throwIf(current < 1 || size < 1 || size > 100, ErrorCode.PARAMS_ERROR);
         Page<Question> questionPage = questionService.page(new Page<>(current, size),
                 questionService.getQueryWrapper(questionQueryRequest));
         return ResultUtils.success(questionPage);
@@ -235,6 +256,7 @@ public class QuestionController {
      * @return
      */
     @PostMapping("/edit")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
     public BaseResponse<Boolean> editQuestion(@RequestBody QuestionEditRequest questionEditRequest, HttpServletRequest request) {
         if (questionEditRequest == null || questionEditRequest.getId() <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
@@ -264,8 +286,28 @@ public class QuestionController {
         if (!oldQuestion.getUserId().equals(loginUser.getId()) && !userService.isAdmin(loginUser)) {
             throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
         }
+        validatePublishCandidate(question, oldQuestion);
         boolean result = questionService.updateById(question);
         return ResultUtils.success(result);
+    }
+
+    /** Publishing is a state transition: validate the complete merged record, not only patched fields. */
+    private void validatePublishCandidate(Question patch, Question persisted) {
+        String targetStatus = patch.getStatus() != null ? patch.getStatus() : persisted.getStatus();
+        if (!"PUBLISHED".equals(targetStatus)) {
+            return;
+        }
+        Question candidate = new Question();
+        BeanUtils.copyProperties(persisted, candidate);
+        if (patch.getTitle() != null) candidate.setTitle(patch.getTitle());
+        if (patch.getDifficulty() != null) candidate.setDifficulty(patch.getDifficulty());
+        if (patch.getStatus() != null) candidate.setStatus(patch.getStatus());
+        if (patch.getContent() != null) candidate.setContent(patch.getContent());
+        if (patch.getTags() != null) candidate.setTags(patch.getTags());
+        if (patch.getAnswer() != null) candidate.setAnswer(patch.getAnswer());
+        if (patch.getJudgeCase() != null) candidate.setJudgeCase(patch.getJudgeCase());
+        if (patch.getJudgeConfig() != null) candidate.setJudgeConfig(patch.getJudgeConfig());
+        questionService.validQuestion(candidate, true);
     }
 
 }

@@ -1,0 +1,12 @@
+format: cookie-oj/v1
+title: A + B
+difficulty: EASY
+tags:
+  - 入门
+  - 数学
+source: Cookie OJ
+license: original
+limits:
+  timeLimit: 1000
+  memoryLimit: 262144
+  stackLimit: 65536

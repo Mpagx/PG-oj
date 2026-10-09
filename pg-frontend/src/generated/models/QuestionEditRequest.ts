@@ -8,10 +8,12 @@ export type QuestionEditRequest = {
     acceptedNum?: number;
     answer?: string;
     content?: string;
+    difficulty?: string;
     id?: number;
     judgeCase?: Array<JudgeCase>;
     judgeConfig?: JudgeConfig;
     submitNum?: number;
+    status?: string;
     tags?: Array<string>;
     title?: string;
 };

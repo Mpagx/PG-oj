@@ -1,17 +1,19 @@
-import { createRouter, createWebHistory, RouteRecordRaw } from "vue-router";
-import helloWorld from "@/components/HelloWorld.vue";
-import AdminView from "@/views/AdminView.vue";
-import NoAuthView from "@/views/NoAuthView.vue";
-import ExampleView from "@/views/ExampleView.vue";
+import { RouteRecordRaw } from "vue-router";
+const AdminView = () => import("@/views/AdminView.vue");
+const NoAuthView = () => import("@/views/NoAuthView.vue");
 import ACCESS_ENUM from "@/access/accessEnum";
-import UserLayout from "@/layouts/UserLayout.vue";
-import UserLoginView from "@/views/user/UserLoginView.vue";
-import UserRegisterView from "@/views/user/UserRegisterView.vue";
-import AddQuestionView from "@/views/question/AddQuestionView.vue";
-import ManageQuestionView from "@/views/question/ManageQuestionView.vue";
-import QuestionsView from "@/views/question/QuestionsView.vue";
-import ViewQuestionView from "@/views/question/ViewQuestionView.vue";
-import QuestionSubmitDetailView from "@/views/question/QuestionSubmitDetailView.vue";
+const UserLayout = () => import("@/layouts/UserLayout.vue");
+const UserLoginView = () => import("@/views/user/UserLoginView.vue");
+const UserRegisterView = () => import("@/views/user/UserRegisterView.vue");
+const ForgotPasswordView = () => import("@/views/user/ForgotPasswordView.vue");
+const MyProfileView = () => import("@/views/user/MyProfileView.vue");
+const AddQuestionView = () => import("@/views/question/AddQuestionView.vue");
+const ManageQuestionView = () =>
+  import("@/views/question/ManageQuestionView.vue");
+const QuestionsView = () => import("@/views/question/QuestionsView.vue");
+const ViewQuestionView = () => import("@/views/question/ViewQuestionView.vue");
+const QuestionSubmitDetailView = () =>
+  import("@/views/question/QuestionSubmitDetailView.vue");
 
 export const routes: Array<RouteRecordRaw> = [
   {
@@ -29,6 +31,11 @@ export const routes: Array<RouteRecordRaw> = [
         name: "用户注册",
         component: UserRegisterView,
       },
+      {
+        path: "/user/forgot-password",
+        name: "找回密码",
+        component: ForgotPasswordView,
+      },
     ],
     meta: {
       hideInMenu: true,
@@ -36,8 +43,8 @@ export const routes: Array<RouteRecordRaw> = [
   },
   {
     path: "/questions",
-    name: "浏览题目",
-    component: QuestionsView,
+    redirect: "/",
+    meta: { hideInMenu: true },
   },
   {
     path: "/view/question/:id",
@@ -65,20 +72,31 @@ export const routes: Array<RouteRecordRaw> = [
     component: AddQuestionView,
     meta: {
       hideInMenu: true,
+      access: ACCESS_ENUM.ADMIN,
     },
+  },
+  {
+    path: "/add/question",
+    name: "新建题目",
+    component: AddQuestionView,
+    meta: { hideInMenu: true, access: ACCESS_ENUM.ADMIN },
   },
   {
     path: "/manage/question/",
     name: "管理题目",
     component: ManageQuestionView,
-    // meta: {
-    //   access: ACCESS_ENUM.ADMIN,
-    // },
+    meta: { access: ACCESS_ENUM.ADMIN },
   },
   {
     path: "/",
-    name: "主页",
+    name: "题库",
     component: QuestionsView,
+  },
+  {
+    path: "/profile",
+    name: "我的",
+    component: MyProfileView,
+    meta: { access: ACCESS_ENUM.USER },
   },
 
   // {
@@ -99,7 +117,7 @@ export const routes: Array<RouteRecordRaw> = [
   },
   {
     path: "/admin",
-    name: "管理员可见",
+    name: "用户管理",
     component: AdminView,
     meta: {
       access: ACCESS_ENUM.ADMIN,
@@ -107,11 +125,7 @@ export const routes: Array<RouteRecordRaw> = [
   },
   {
     path: "/about",
-    name: "关于我的",
-    // route level code-splitting
-    // this generates a separate chunk (about.[hash].js) for this route
-    // which is lazy-loaded when the route is visited.
-    component: () =>
-      import(/* webpackChunkName: "about" */ "../views/AboutView.vue"),
+    redirect: "/profile",
+    meta: { hideInMenu: true },
   },
 ];

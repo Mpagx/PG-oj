@@ -1,0 +1,25 @@
+[Unit]
+Description=POJ code sandbox (dedicated Linux VM)
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+User=poj-sandbox
+Group=poj-sandbox
+SupplementaryGroups=docker
+WorkingDirectory=/var/lib/poj-sandbox
+EnvironmentFile=/etc/poj/sandbox.env
+ExecStart=/usr/bin/java -Xms128m -Xmx512m -jar /opt/poj/sandbox/sandbox.jar
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=60
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/poj-sandbox /var/log/poj
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

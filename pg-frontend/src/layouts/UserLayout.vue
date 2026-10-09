@@ -50,7 +50,7 @@
 <script setup lang="ts">
 import { useRouter } from "vue-router";
 import logoImg from "@/assets/cz.png";
-import { GithubOutlined } from "@ant-design/icons-vue";
+import GithubOutlined from "@ant-design/icons-vue/es/icons/GithubOutlined";
 
 const router = useRouter();
 

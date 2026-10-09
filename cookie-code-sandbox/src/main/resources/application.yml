@@ -1,11 +1,19 @@
 server:
   # 沙箱仅供同机后端调用，禁止直接暴露到局域网或公网。
-  address: 127.0.0.1
-  port: 8090
+  address: ${SERVER_ADDRESS:127.0.0.1}
+  port: ${SERVER_PORT:8090}
 
 spring:
   application:
     name: cookie-code-sandbox
+
+logging:
+  file:
+    name: ${LOG_PATH:logs}/sandbox.log
+  logback:
+    rollingpolicy:
+      max-file-size: 20MB
+      max-history: 14
 
 codesandbox:
   token: ${CODE_SANDBOX_TOKEN:}

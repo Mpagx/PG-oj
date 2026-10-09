@@ -1,11 +1,18 @@
 <template>
   <div id="code-editor" ref="codeEditorRef" style="min-height: 400px" />
-  <!--  <a-button @click="fillValue">填充值</a-button>-->
 </template>
 
 <script setup lang="ts">
-import * as monaco from "monaco-editor";
-import { onMounted, ref, toRaw, withDefaults, defineProps, watch } from "vue";
+import * as monaco from "monaco-editor/esm/vs/editor/editor.api";
+import {
+  onMounted,
+  onBeforeUnmount,
+  shallowRef,
+  ref,
+  withDefaults,
+  defineProps,
+  watch,
+} from "vue";
 
 /**
  * 定义组件属性类型
@@ -22,21 +29,11 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   value: () => "",
   language: () => "java",
-  handleChange: (v: string) => {
-    console.log(v);
-  },
+  handleChange: () => undefined,
 });
 
 const codeEditorRef = ref();
-const codeEditor = ref();
-
-const fillValue = () => {
-  if (!codeEditor.value) {
-    return;
-  }
-  // 改变值
-  toRaw(codeEditor.value).setValue("新的值");
-};
+const codeEditor = shallowRef<monaco.editor.IStandaloneCodeEditor>();
 
 onMounted(() => {
   if (!codeEditorRef.value) {
@@ -57,9 +54,21 @@ onMounted(() => {
 
   // 编辑 监听内容变化
   codeEditor.value.onDidChangeModelContent(() => {
-    props.handleChange(toRaw(codeEditor.value).getValue());
+    props.handleChange(codeEditor.value?.getValue() || "");
   });
 });
+onBeforeUnmount(() => {
+  const model = codeEditor.value?.getModel();
+  codeEditor.value?.dispose();
+  model?.dispose();
+});
+watch(
+  () => props.value,
+  (value) => {
+    if (codeEditor.value && codeEditor.value.getValue() !== value)
+      codeEditor.value.setValue(value);
+  }
+);
 
 // 切换编程语言：只切换当前模型的语法高亮语言，保留用户已输入的代码和内容监听
 watch(

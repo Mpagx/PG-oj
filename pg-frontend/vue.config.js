@@ -1,12 +1,28 @@
 const MonacoWebpackPlugin = require("monaco-editor-webpack-plugin");
 
 module.exports = {
+  // Monaco and the Markdown editor make parallel production compilation very
+  // memory hungry on Windows. A single worker is slower but avoids random OOMs.
+  parallel: false,
+  chainWebpack: (config) => {
+    // ESLint/Prettier caches can become stale on Windows when IDEA restores files
+    // with their original timestamp. Disable the small lint cache so `serve` and
+    // `build` always validate the source currently stored on disk.
+    if (config.plugins.has("eslint")) {
+      config.plugin("eslint").tap((options) => {
+        options[0].cache = false;
+        delete options[0].cacheStrategy;
+        return options;
+      });
+    }
+  },
   devServer: {
-    port: 8080,
+    port: 8082,
     historyApiFallback: true,
     proxy: {
       "/api": {
-        target: "http://localhost:8121",
+        // Backend binds IPv4; Node may resolve localhost to IPv6 ::1.
+        target: "http://127.0.0.1:8121",
         changeOrigin: true,
       },
     },
@@ -24,6 +40,11 @@ module.exports = {
   configureWebpack: {
     // Monaco 的 html/css/json/ts 等语言需要 web worker 提供智能提示，
     // 不配置会报 “You must define a function MonacoEnvironment.getWorkerUrl...”
-    plugins: [new MonacoWebpackPlugin()],
+    plugins: [
+      new MonacoWebpackPlugin({
+        languages: ["java"],
+        features: ["bracketMatching", "find", "hover", "suggest", "folding"],
+      }),
+    ],
   },
 };

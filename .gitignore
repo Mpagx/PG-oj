@@ -9,6 +9,9 @@ Thumbs.db
 **/*.class
 **/tmpCode/
 *.log
+*.log.*.gz
+.local-backups/
+pg-backend/uploads/
 
 # Frontend dependencies and build output
 **/node_modules/

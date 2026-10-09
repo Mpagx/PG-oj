@@ -1,0 +1,23 @@
+groups:
+  - name: poj
+    rules:
+      - alert: PojBackendDown
+        expr: up{job="poj"} == 0
+        for: 2m
+        labels: { severity: critical }
+        annotations: { summary: 'POJ backend metrics unavailable' }
+      - alert: PojSandboxDown
+        expr: poj_sandbox_up == 0
+        for: 1m
+        labels: { severity: critical }
+        annotations: { summary: 'POJ Docker execution infrastructure unavailable' }
+      - alert: PojQueueBacklog
+        expr: poj_judge_waiting > 100
+        for: 5m
+        labels: { severity: warning }
+        annotations: { summary: 'POJ pending submissions exceed 100' }
+      - alert: PojJudgeSystemErrors
+        expr: sum(rate(poj_judge_attempts_total{outcome="system_error"}[5m])) / clamp_min(sum(rate(poj_judge_attempts_total[5m])), 0.001) > 0.1
+        for: 5m
+        labels: { severity: critical }
+        annotations: { summary: 'POJ judging system error rate exceeds 10 percent' }

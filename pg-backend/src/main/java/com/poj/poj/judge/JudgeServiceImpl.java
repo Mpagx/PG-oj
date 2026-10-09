@@ -59,6 +59,8 @@ public class JudgeServiceImpl implements JudgeService {
 
     @Autowired
     private QuestionSubmitStateMachine stateMachine;
+    @Resource
+    private io.micrometer.core.instrument.MeterRegistry metrics;
 
     @Override
     public QuestionSubmit doJudge(long questionSubmitId) {
@@ -75,8 +77,13 @@ public class JudgeServiceImpl implements JudgeService {
         }
 
         try {
-            return executeJudge(questionSubmit, token);
+            long started = System.nanoTime();
+            QuestionSubmit result = executeJudge(questionSubmit, token);
+            metrics.timer("poj.judge.duration").record(System.nanoTime() - started, java.util.concurrent.TimeUnit.NANOSECONDS);
+            metrics.counter("poj.judge.attempts", "outcome", "completed").increment();
+            return result;
         } catch (RuntimeException e) {
+            metrics.counter("poj.judge.attempts", "outcome", "system_error").increment();
             JudgeInfo failure = new JudgeInfo();
             failure.setMessage(JudgeInfoMessageEnum.SYSTEM_ERROR.getValue());
             failure.setDetail("判题服务暂时不可用，正在自动重试");
@@ -104,6 +111,7 @@ public class JudgeServiceImpl implements JudgeService {
         codeSandbox = new CodeSandboxProxy(codeSandbox);
 
         List<JudgeCase> judgeCaseList = JSONUtil.toList(question.getJudgeCase(), JudgeCase.class);
+        QuestionJudgeValidator.validate(question.getJudgeCase(), question.getJudgeConfig());
         List<String> inputList = judgeCaseList.stream().map(JudgeCase::getInput).collect(Collectors.toList());
         JudgeConfig judgeConfig = JSONUtil.toBean(question.getJudgeConfig(), JudgeConfig.class);
         if (judgeConfig == null || judgeConfig.getTimeLimit() == null
@@ -138,14 +146,24 @@ public class JudgeServiceImpl implements JudgeService {
             if (detail == null && userCodeFailure.getMessage() != null) {
                 detail = userCodeFailure.getMessage();
             }
-            if (detail != null && detail.contains("编译")) {
+            String verdict = executeCodeResponse.getVerdict();
+            if ("CE".equals(verdict)) {
                 userCodeFailure.setMessage(JudgeInfoMessageEnum.COMPILE_ERROR.getValue());
-            } else if (detail != null && detail.contains("超时")) {
+            } else if ("TLE".equals(verdict)) {
                 userCodeFailure.setMessage(JudgeInfoMessageEnum.TIME_LIMIT_EXCEEDED.getValue());
+            } else if ("MLE".equals(verdict)) {
+                userCodeFailure.setMessage(JudgeInfoMessageEnum.MEMORY_LIMIT_EXCEEDED.getValue());
+            } else if ("OLE".equals(verdict)) {
+                userCodeFailure.setMessage(JudgeInfoMessageEnum.OUTPUT_LIMIT_EXCEEDED.getValue());
             } else {
                 userCodeFailure.setMessage(JudgeInfoMessageEnum.RUNTIME_ERROR.getValue());
             }
-            userCodeFailure.setPassedCaseCount(outputList == null ? 0 : outputList.size());
+            int passed = 0;
+            if (outputList != null) for (int i = 0; i < Math.min(outputList.size(), judgeCaseList.size()); i++) {
+                if (com.poj.poj.judge.strategy.DefaultJudgeStrategy.normalize(outputList.get(i)).equals(
+                        com.poj.poj.judge.strategy.DefaultJudgeStrategy.normalize(judgeCaseList.get(i).getOutput()))) passed++;
+            }
+            userCodeFailure.setPassedCaseCount(passed);
             userCodeFailure.setTotalCaseCount(judgeCaseList.size());
             userCodeFailure.setDetail(detail);
             if (!stateMachine.complete(questionSubmitId, token, questionId, userCodeFailure, false)) {
@@ -162,8 +180,6 @@ public class JudgeServiceImpl implements JudgeService {
         judgeContext.setQuestion(question);
         judgeContext.setQuestionSubmit(questionSubmit);
         JudgeInfo judgeInfo = judgeManager.doJudge(judgeContext);
-        judgeInfo.setPassedCaseCount("Accepted".equals(judgeInfo.getMessage())
-                ? judgeCaseList.size() : 0);
         judgeInfo.setTotalCaseCount(judgeCaseList.size());
         judgeInfo.setDetail(executeCodeResponse.getMessage());
         boolean accepted = "Accepted".equals(judgeInfo.getMessage());

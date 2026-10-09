@@ -1,6 +1,6 @@
 import { createStore } from "vuex";
-import user from "./user";
-export default createStore({
+import user, { UserState } from "./user";
+export default createStore<{ user: UserState }>({
   actions: {},
   modules: {
     user,

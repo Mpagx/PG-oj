@@ -30,7 +30,7 @@ public class UserQueryRequest extends PageRequest implements Serializable {
     private String mpOpenId;
 
     /**
-     * 用户昵称
+     * 用户名
      */
     private String userName;
 

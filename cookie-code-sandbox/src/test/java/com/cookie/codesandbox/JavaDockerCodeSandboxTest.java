@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.net.ConnectException;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -71,6 +72,16 @@ class JavaDockerCodeSandboxTest {
                 () -> sandbox.limitedOrDefault("时间", 10_001L, 1000L, 100L, 10_000L));
         assertThrows(IllegalArgumentException.class,
                 () -> sandbox.limitedOrDefault("内存", 1024L, 262_144L, 16_384L, 524_288L));
+    }
+
+    @Test
+    void explainsMissingDockerTunnelWithoutLeakingStackTrace() {
+        RuntimeException error = new RuntimeException(
+                "transport failed", new ConnectException("Connection refused: 127.0.0.1:2375"));
+
+        assertEquals(
+                "Docker Engine 无法连接，请运行 scripts/start-sandbox-vm.ps1 建立 2375 SSH 隧道",
+                sandbox.infrastructureErrorMessage(error));
     }
 
     private ExecuteCodeRequest request(String code, java.util.List<String> inputs) {

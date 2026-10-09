@@ -12,6 +12,7 @@ import org.springframework.boot.test.context.SpringBootTest;
  * @from <a href="https://yupi.icu">编程导航知识星球</a>
  */
 @SpringBootTest
+@org.junit.jupiter.api.condition.EnabledIfSystemProperty(named = "poj.external.tests", matches = "true")
 public class UserServiceTest {
 
     @Resource

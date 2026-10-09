@@ -3,6 +3,7 @@ package com.poj.poj.service;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.poj.poj.model.dto.user.UserQueryRequest;
+import com.poj.poj.model.dto.user.UserUpdateMyRequest;
 import com.poj.poj.model.entity.User;
 import com.poj.poj.model.vo.LoginUserVO;
 import com.poj.poj.model.vo.UserVO;
@@ -21,22 +22,29 @@ public interface UserService extends IService<User> {
     /**
      * 用户注册
      *
-     * @param userAccount   用户账户
+     * @param userName      唯一用户名
      * @param userPassword  用户密码
      * @param checkPassword 校验密码
      * @return 新用户 id
      */
-    long userRegister(String userAccount, String userPassword, String checkPassword);
+    long userRegister(String userName, String userPassword, String checkPassword, String userEmail);
+
+    default long userRegister(String userName, String userPassword, String checkPassword) {
+        return userRegister(userName, userPassword, checkPassword, null);
+    }
 
     /**
      * 用户登录
      *
-     * @param userAccount  用户账户
+     * @param userName     唯一用户名
      * @param userPassword 用户密码
      * @param request
      * @return 脱敏后的用户信息
      */
-    LoginUserVO userLogin(String userAccount, String userPassword, HttpServletRequest request);
+    LoginUserVO userLogin(String userName, String userPassword, HttpServletRequest request);
+
+    /** 更新当前用户资料；唯一用户名每 30 天最多修改一次。 */
+    boolean updateMyUser(UserUpdateMyRequest request, User loginUser);
 
     /**
      * 用户登录（微信开放平台）

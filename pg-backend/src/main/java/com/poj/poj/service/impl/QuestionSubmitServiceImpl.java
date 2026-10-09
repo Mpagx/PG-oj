@@ -9,6 +9,7 @@ import com.poj.poj.exception.BusinessException;
 import com.poj.poj.judge.QuestionSubmitCreatedEvent;
 import com.poj.poj.mapper.QuestionMapper;
 import com.poj.poj.model.dto.questionsubmit.QuestionSubmitAddRequest;
+import com.poj.poj.model.dto.questionsubmit.CustomTestRequest;
 import com.poj.poj.model.dto.questionsubmit.QuestionSubmitQueryRequest;
 import com.poj.poj.model.entity.Question;
 import com.poj.poj.model.entity.QuestionSubmit;
@@ -16,6 +17,9 @@ import com.poj.poj.model.entity.User;
 import com.poj.poj.model.enums.QuestionSubmitLanguageEnum;
 import com.poj.poj.model.enums.QuestionSubmitStatusEnum;
 import com.poj.poj.model.vo.QuestionSubmitVO;
+import com.poj.poj.model.vo.CustomTestResultVO;
+import com.poj.poj.model.vo.QuestionVO;
+import com.poj.poj.model.vo.UserSubmissionOverviewVO;
 import com.poj.poj.service.QuestionService;
 import com.poj.poj.service.QuestionSubmitService;
 import com.poj.poj.mapper.QuestionSubmitMapper;
@@ -31,6 +35,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
 import java.util.List;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -53,6 +61,12 @@ public class QuestionSubmitServiceImpl extends ServiceImpl<QuestionSubmitMapper,
 
     @Resource
     private ApplicationEventPublisher eventPublisher;
+
+    @Resource
+    private com.poj.poj.judge.codesandbox.impl.RemoteCodeSandbox remoteCodeSandbox;
+
+    @org.springframework.beans.factory.annotation.Value("${codesandbox.type:remote}")
+    private String sandboxType;
     /**
      * 提交题目
      *
@@ -73,14 +87,29 @@ public class QuestionSubmitServiceImpl extends ServiceImpl<QuestionSubmitMapper,
         if (StringUtils.isBlank(code)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "代码不能为空");
         }
-        if (code.length() > 65536) {
+        if (code.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 65536) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "代码长度不能超过 65536 个字符");
+        }
+        if ("java".equals(language)) {
+            com.poj.poj.judge.JavaSubmissionValidator.validate(code);
         }
         long questionId = questionSubmitAddRequest.getQuestionId();
         // 判断实体是否存在，根据类别获取实体
         Question question = questionService.getById(questionId);
         if (question == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND_ERROR);
+        }
+        if (!"PUBLISHED".equals(question.getStatus())) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "题目尚未发布，暂不能提交");
+        }
+        com.poj.poj.judge.QuestionJudgeValidator.validate(question.getJudgeCase(), question.getJudgeConfig());
+        // Do not create submissions that will immediately exhaust retries when Docker is offline.
+        if ("remote".equals(sandboxType)) {
+            com.poj.poj.judge.codesandbox.model.SandboxHealthResponse health = remoteCodeSandbox.health();
+            if (health == null || !"UP".equals(health.getStatus())) {
+                throw new BusinessException(ErrorCode.SYSTEM_ERROR,
+                        "判题服务未就绪，请检查沙箱服务、Docker、执行镜像及 SSH 隧道；未创建提交，请稍后重试");
+            }
         }
         // 是否已提交题目
         long userId = loginUser.getId();
@@ -103,6 +132,75 @@ public class QuestionSubmitServiceImpl extends ServiceImpl<QuestionSubmitMapper,
         }
         eventPublisher.publishEvent(new QuestionSubmitCreatedEvent(questionSubmitId));
         return questionSubmitId;
+    }
+
+    @Override
+    public CustomTestResultVO runCustomTest(CustomTestRequest request, User loginUser) {
+        String language = request.getLanguage();
+        if (QuestionSubmitLanguageEnum.getEnumByValue(language) == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "编程语言错误");
+        }
+        String code = request.getCode();
+        if (StringUtils.isBlank(code)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "代码不能为空");
+        }
+        if (code.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 65536) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "代码长度不能超过 65536 字节");
+        }
+        String input = request.getInput() == null ? "" : request.getInput();
+        if (input.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 65536) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "自定义输入不能超过 65536 字节");
+        }
+        if ("java".equals(language)) {
+            com.poj.poj.judge.JavaSubmissionValidator.validate(code);
+        }
+        Question question = questionService.getById(request.getQuestionId());
+        if (question == null || !"PUBLISHED".equals(question.getStatus())) {
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "题目不存在或尚未发布");
+        }
+        com.poj.poj.model.dto.question.JudgeConfig config;
+        try {
+            config = cn.hutool.json.JSONUtil.toBean(question.getJudgeConfig(),
+                    com.poj.poj.model.dto.question.JudgeConfig.class);
+        } catch (RuntimeException error) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "题目资源限制配置无效");
+        }
+        com.poj.poj.judge.QuestionJudgeValidator.validateConfig(question.getJudgeConfig());
+        if ("remote".equals(sandboxType)) {
+            com.poj.poj.judge.codesandbox.model.SandboxHealthResponse health = remoteCodeSandbox.health();
+            if (health == null || !"UP".equals(health.getStatus())) {
+                throw new BusinessException(ErrorCode.SYSTEM_ERROR, "判题服务未就绪，请稍后重试");
+            }
+        }
+        com.poj.poj.judge.codesandbox.CodeSandbox sandbox = "remote".equals(sandboxType)
+                ? remoteCodeSandbox
+                : com.poj.poj.judge.codesandbox.CodeSandboxFactory.newInstance(sandboxType);
+        sandbox = new com.poj.poj.judge.codesandbox.CodeSandboxProxy(sandbox);
+        com.poj.poj.judge.codesandbox.model.ExecuteCodeResponse response = sandbox.executeCode(
+                com.poj.poj.judge.codesandbox.model.ExecuteCodeRequest.builder()
+                        .protocolVersion("1.0")
+                        .requestId("custom-test-" + loginUser.getId() + "-" + java.util.UUID.randomUUID())
+                        .inputList(Collections.singletonList(input))
+                        .code(code)
+                        .language(language)
+                        .timeLimitMs(config.getTimeLimit())
+                        .memoryLimitKb(config.getMemoryLimit())
+                        .stackLimitKb(config.getStackLimit())
+                        .build());
+        if (response == null || "2".equals(response.getStatus())) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR,
+                    response == null ? "判题服务没有返回结果" : response.getMessage());
+        }
+        CustomTestResultVO result = new CustomTestResultVO();
+        result.setOutput(response.getOutputList() == null || response.getOutputList().isEmpty()
+                ? "" : response.getOutputList().get(0));
+        result.setVerdict(response.getVerdict());
+        result.setMessage(response.getMessage());
+        if (response.getJudgeInfo() != null) {
+            result.setTime(response.getJudgeInfo().getTime());
+            result.setMemory(response.getJudgeInfo().getMemory());
+        }
+        return result;
     }
 
     /**
@@ -154,11 +252,34 @@ public class QuestionSubmitServiceImpl extends ServiceImpl<QuestionSubmitMapper,
         if (CollectionUtils.isEmpty(questionSubmitList)) {
             return questionSubmitVOPage;
         }
+        Set<Long> questionIds = questionSubmitList.stream().map(QuestionSubmit::getQuestionId).collect(Collectors.toSet());
+        Map<Long, Question> questions = questionService.listByIds(questionIds).stream()
+                .collect(Collectors.toMap(Question::getId, Function.identity()));
         List<QuestionSubmitVO> questionSubmitVOList = questionSubmitList.stream()
-                .map(questionSubmit -> getQuestionSubmitVO(questionSubmit, loginUser))
+                .map(questionSubmit -> {
+                    QuestionSubmitVO vo = getQuestionSubmitVO(questionSubmit, loginUser);
+                    Question question = questions.get(questionSubmit.getQuestionId());
+                    if (question != null) {
+                        QuestionVO questionVO = new QuestionVO();
+                        questionVO.setId(question.getId());
+                        questionVO.setTitle(question.getTitle());
+                        vo.setQuestionVO(questionVO);
+                    }
+                    return vo;
+                })
                 .collect(Collectors.toList());
         questionSubmitVOPage.setRecords(questionSubmitVOList);
         return questionSubmitVOPage;
+    }
+
+    @Override
+    public UserSubmissionOverviewVO getUserSubmissionOverview(long userId) {
+        UserSubmissionOverviewVO overview = baseMapper.selectUserOverview(userId);
+        if (overview == null) {
+            overview = new UserSubmissionOverviewVO();
+        }
+        overview.setActivity(baseMapper.selectRecentActivity(userId));
+        return overview;
     }
 
 

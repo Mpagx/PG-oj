@@ -26,9 +26,9 @@ public class User implements Serializable {
     private Long id;
 
     /**
-     * 用户账号
+     * 唯一用户名，也是登录标识
      */
-    private String userAccount;
+    private String userName;
 
     /**
      * 用户密码
@@ -46,11 +46,6 @@ public class User implements Serializable {
     private String mpOpenId;
 
     /**
-     * 用户昵称
-     */
-    private String userName;
-
-    /**
      * 用户头像
      */
     private String userAvatar;
@@ -59,6 +54,16 @@ public class User implements Serializable {
      * 用户简介
      */
     private String userProfile;
+
+    /** 最近一次修改唯一用户名的时间。 */
+    private Date userNameUpdateTime;
+
+    /** 已验证邮箱，不向其他用户公开。 */
+    private String userEmail;
+
+    private Date emailVerifiedAt;
+
+    private Date passwordChangedAt;
 
     /**
      * 用户角色：user/admin/ban

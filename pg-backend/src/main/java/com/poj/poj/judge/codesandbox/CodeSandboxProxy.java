@@ -22,7 +22,7 @@ public class CodeSandboxProxy implements CodeSandbox {
         if (executeCodeResponse == null) {
             throw new IllegalStateException("代码沙箱返回为空");
         }
-        log.info("代码沙箱响应信息：{}", executeCodeResponse);
+        log.info("代码沙箱响应 requestId={} status={} verdict={}", executeCodeResponse.getRequestId(), executeCodeResponse.getStatus(), executeCodeResponse.getVerdict());
         return executeCodeResponse;
     }
 }

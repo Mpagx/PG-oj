@@ -16,10 +16,14 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
+    @ExceptionHandler(org.springframework.dao.DuplicateKeyException.class)
+    public BaseResponse<?> duplicateKey(org.springframework.dao.DuplicateKeyException error) {
+        return ResultUtils.error(ErrorCode.PARAMS_ERROR, "账号已存在");
+    }
 
     @ExceptionHandler(BusinessException.class)
     public BaseResponse<?> businessExceptionHandler(BusinessException e) {
-        log.error("BusinessException", e);
+        log.warn("Business rejection: code={}, message={}", e.getCode(), e.getMessage());
         return ResultUtils.error(e.getCode(), e.getMessage());
     }
 

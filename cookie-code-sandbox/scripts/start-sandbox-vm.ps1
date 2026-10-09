@@ -1,6 +1,6 @@
-param(
-    [string]$VmPath = 'D:\compile\compile\VMproject\Ubuntu 64 位.vmx',
-    [string]$VmUser = 'pengge',
+﻿param(
+    [string]$VmPath = $(if ($env:POJ_SANDBOX_VM_PATH) { $env:POJ_SANDBOX_VM_PATH } else { 'D:\compile\compile\VMproject\Ubuntu 64 位.vmx' }),
+    [string]$VmUser = $(if ($env:POJ_SANDBOX_VM_USER) { $env:POJ_SANDBOX_VM_USER } else { 'pengge' }),
     [string]$SshKeyPath = "$env:USERPROFILE\.ssh\poj_sandbox_vm"
 )
 

@@ -1,0 +1,24 @@
+[Unit]
+Description=POJ backend
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=poj
+Group=poj
+WorkingDirectory=/opt/poj/backend
+EnvironmentFile=/etc/poj/backend.env
+ExecStart=/usr/bin/java -Xms256m -Xmx768m -jar /opt/poj/backend/backend.jar
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=60
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/log/poj
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

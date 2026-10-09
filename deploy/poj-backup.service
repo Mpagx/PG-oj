@@ -1,0 +1,9 @@
+[Unit]
+Description=POJ transactional MySQL backup
+[Service]
+Type=oneshot
+User=poj-backup
+EnvironmentFile=/etc/poj/backup.env
+ExecStart=/bin/bash /opt/poj/deploy/backup.sh
+UMask=0077
+NoNewPrivileges=true

@@ -31,6 +31,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
+import java.net.ConnectException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -140,8 +141,10 @@ public class JavaDockerCodeSandbox implements CodeSandbox {
             ExecuteMessage compileResult = compileInContainer(
                     dockerClient, image, codeVolumeName);
             if (compileResult.getExitValue() == null || compileResult.getExitValue() != 0) {
-                return userCodeErrorResponse(StrUtil.blankToDefault(
+                ExecuteCodeResponse failure = userCodeErrorResponse(StrUtil.blankToDefault(
                         compileResult.getErrorMessage(), "代码编译失败"), compileResult.getTime());
+                failure.setVerdict("CE");
+                return failure;
             }
 
             return runTestCases(dockerClient, image, codeVolumeName,
@@ -269,9 +272,11 @@ public class JavaDockerCodeSandbox implements CodeSandbox {
 
         List<String> outputList = new ArrayList<>();
         String errorMessage = null;
+        String verdict = null;
         for (ExecuteMessage message : executeMessages) {
             if (StrUtil.isNotBlank(message.getErrorMessage())) {
                 errorMessage = message.getErrorMessage();
+                verdict = message.getVerdict();
                 break;
             }
             outputList.add(StrUtil.nullToEmpty(message.getMessage()));
@@ -286,6 +291,7 @@ public class JavaDockerCodeSandbox implements CodeSandbox {
         response.setOutputList(outputList);
         response.setMessage(errorMessage);
         response.setStatus(errorMessage == null ? "1" : "3");
+        response.setVerdict(verdict);
         response.setJudgeInfo(judgeInfo);
         return response;
     }
@@ -293,15 +299,14 @@ public class JavaDockerCodeSandbox implements CodeSandbox {
     private ExecuteMessage runOneTestCase(
             DockerClient dockerClient, String image, String codeVolumeName, String input,
             long timeoutMillis, long memoryLimitKb, long stackLimitKb) throws Exception {
-        String[] inputArguments = StrUtil.isBlank(input)
-                ? new String[0]
-                : input.trim().split("\\s+");
         long heapLimitKb = Math.max(16L * 1024,
                 Math.min(256L * 1024, memoryLimitKb / 2));
-        String[] command = ArrayUtil.append(
-                new String[]{"java", "-Xmx" + heapLimitKb + "k", "-Xss" + stackLimitKb + "k",
-                        "-Dfile.encoding=UTF-8", "-cp", CONTAINER_CODE_DIR, "Main"},
-                inputArguments);
+        // Only Base64 and validated numeric limits enter the shell, never raw problem input.
+        String encoded = java.util.Base64.getEncoder().encodeToString(
+                StrUtil.nullToEmpty(input).getBytes(StandardCharsets.UTF_8));
+        String[] command = new String[]{"sh", "-c", "printf '%s' '" + encoded
+                + "' | base64 -d | java -Xmx" + heapLimitKb + "k -Xss" + stackLimitKb
+                + "k -Dfile.encoding=UTF-8 -cp " + CONTAINER_CODE_DIR + " Main"};
 
         String runtimeContainerId = null;
         try {
@@ -385,22 +390,29 @@ public class JavaDockerCodeSandbox implements CodeSandbox {
 
         if (stdout.isTruncated() || stderr.isTruncated()) {
             result.setErrorMessage("程序输出超过限制（" + limits.getMaxOutputBytes() + " bytes）");
+            result.setVerdict("OLE");
             return result;
         }
 
         if (!completed) {
             stopContainerQuietly(dockerClient, containerId);
             result.setErrorMessage("执行超时（限制 " + timeoutMillis + " ms）");
+            result.setVerdict("TLE");
             return result;
         }
 
         InspectExecResponse execResult = dockerClient.inspectExecCmd(exec.getId()).exec();
         result.setExitValue(execResult.getExitCode());
         result.setMessage(stdout.getText());
-        if (StrUtil.isNotBlank(stderr.getText()) || execResult.getExitCode() == null
+        if (execResult.getExitCode() == null
                 || execResult.getExitCode() != 0) {
             result.setErrorMessage(StrUtil.blankToDefault(
                     stderr.getText(), "程序异常退出，退出码：" + execResult.getExitCode()));
+            result.setVerdict(stderr.getText().contains("OutOfMemoryError") ? "MLE" : "RE");
+            if (Integer.valueOf(137).equals(execResult.getExitCode())) {
+                result.setErrorMessage("内存超限或进程被系统终止：" + stderr.getText());
+                result.setVerdict("MLE");
+            }
         }
         return result;
     }
@@ -480,17 +492,35 @@ public class JavaDockerCodeSandbox implements CodeSandbox {
 
     private ExecuteCodeResponse getErrorResponse(Throwable e, String requestId) {
         log.error("代码沙箱执行失败, requestId: {}", requestId, e);
+        String publicMessage = infrastructureErrorMessage(e);
         JudgeInfo judgeInfo = new JudgeInfo();
-        judgeInfo.setMessage("代码沙箱内部错误");
+        judgeInfo.setMessage(publicMessage);
         judgeInfo.setTime(0L);
         judgeInfo.setMemory(0L);
 
         ExecuteCodeResponse response = new ExecuteCodeResponse();
         response.setOutputList(new ArrayList<>());
-        response.setMessage("代码沙箱内部错误");
+        response.setMessage(publicMessage);
         response.setStatus("2");
         response.setJudgeInfo(judgeInfo);
         return response;
+    }
+
+    /** 只向调用方暴露可操作的基础设施提示，不泄露堆栈或主机信息。 */
+    String infrastructureErrorMessage(Throwable error) {
+        for (Throwable current = error; current != null; current = current.getCause()) {
+            if (current instanceof ConnectException) {
+                return "Docker Engine 无法连接，请运行 scripts/start-sandbox-vm.ps1 建立 2375 SSH 隧道";
+            }
+            String message = current.getMessage();
+            if (message != null && message.startsWith("Docker 镜像 ")) {
+                return message;
+            }
+            if (message != null && message.startsWith("沙箱并发任务已满")) {
+                return message;
+            }
+        }
+        return "代码沙箱内部错误";
     }
 
     private void stopContainerQuietly(DockerClient dockerClient, String containerId) {

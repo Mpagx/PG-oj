@@ -16,10 +16,29 @@ import type { UserQueryRequest } from '../models/UserQueryRequest';
 import type { UserRegisterRequest } from '../models/UserRegisterRequest';
 import type { UserUpdateMyRequest } from '../models/UserUpdateMyRequest';
 import type { UserUpdateRequest } from '../models/UserUpdateRequest';
+import type { EmailCodeRequest } from '../models/EmailCodeRequest';
+import type { EmailBindRequest } from '../models/EmailBindRequest';
+import type { PasswordResetRequest } from '../models/PasswordResetRequest';
+import type { AdminPasswordResetRequest } from '../models/AdminPasswordResetRequest';
 import type { CancelablePromise } from '../core/CancelablePromise';
 import { OpenAPI } from '../core/OpenAPI';
 import { request as __request } from '../core/request';
 export class UserControllerService {
+    public static emailStatusUsingGet(): CancelablePromise<BaseResponse_boolean_ | any> {
+        return __request(OpenAPI, { method: 'GET', url: '/api/user/email/status' });
+    }
+    public static sendEmailCodeUsingPost(body: EmailCodeRequest): CancelablePromise<BaseResponse_boolean_ | any> {
+        return __request(OpenAPI, { method: 'POST', url: '/api/user/email/code', body });
+    }
+    public static bindEmailUsingPost(body: EmailBindRequest): CancelablePromise<BaseResponse_boolean_ | any> {
+        return __request(OpenAPI, { method: 'POST', url: '/api/user/email/bind', body });
+    }
+    public static resetPasswordUsingPost(body: PasswordResetRequest): CancelablePromise<BaseResponse_boolean_ | any> {
+        return __request(OpenAPI, { method: 'POST', url: '/api/user/password/reset', body });
+    }
+    public static adminSendPasswordResetUsingPost(body: AdminPasswordResetRequest): CancelablePromise<BaseResponse_boolean_ | any> {
+        return __request(OpenAPI, { method: 'POST', url: '/api/user/password/reset/admin-send', body });
+    }
     /**
      * addUser
      * @param userAddRequest userAddRequest

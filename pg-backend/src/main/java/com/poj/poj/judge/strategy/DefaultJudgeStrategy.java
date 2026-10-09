@@ -1,68 +1,40 @@
 package com.poj.poj.judge.strategy;
 
 import cn.hutool.json.JSONUtil;
-import com.poj.poj.model.dto.question.JudgeCase;
-import com.poj.poj.model.dto.question.JudgeConfig;
 import com.poj.poj.judge.codesandbox.model.JudgeInfo;
-import com.poj.poj.model.entity.Question;
+import com.poj.poj.model.dto.question.JudgeConfig;
 import com.poj.poj.model.enums.JudgeInfoMessageEnum;
-
 import java.util.List;
 
-/**
- * 默认判题策略
- */
 public class DefaultJudgeStrategy implements JudgeStrategy {
-
-    /**
-     * 执行判题
-     * @param judgeContext
-     * @return
-     */
     @Override
-    public JudgeInfo doJudge(JudgeContext judgeContext) {
-        JudgeInfo judgeInfo = judgeContext.getJudgeInfo();
-        Long memory = judgeInfo.getMemory();
-        Long time = judgeInfo.getTime();
-        List<String> inputList = judgeContext.getInputList();
-        List<String> outputList = judgeContext.getOutputList();
-        Question question = judgeContext.getQuestion();
-        List<JudgeCase> judgeCaseList = judgeContext.getJudgeCaseList();
-        JudgeInfoMessageEnum judgeInfoMessageEnum = JudgeInfoMessageEnum.ACCEPTED;
-        JudgeInfo judgeInfoResponse = new JudgeInfo();
-        judgeInfoResponse.setMemory(memory);
-        judgeInfoResponse.setTime(time);
-        // 先判断沙箱执行的结果输出数量是否和预期输出数量相等
-        if (outputList.size() != inputList.size()) {
-            judgeInfoMessageEnum = JudgeInfoMessageEnum.WRONG_ANSWER;
-            judgeInfoResponse.setMessage(judgeInfoMessageEnum.getValue());
-            return judgeInfoResponse;
+    public JudgeInfo doJudge(JudgeContext context) {
+        JudgeInfo execution = context.getJudgeInfo();
+        List<String> outputs = context.getOutputList();
+        if (execution == null || execution.getTime() == null || execution.getMemory() == null
+                || outputs == null) throw new IllegalStateException("沙箱执行数据缺失");
+        JudgeInfo result = new JudgeInfo();
+        result.setTime(execution.getTime());
+        result.setMemory(execution.getMemory());
+        int total = context.getJudgeCaseList().size();
+        int passed = 0;
+        for (int i = 0; i < Math.min(outputs.size(), total); i++) {
+            if (normalize(context.getJudgeCaseList().get(i).getOutput()).equals(normalize(outputs.get(i)))) passed++;
         }
-        // 依次判断每一项输出和预期输出是否相等
-        for (int i = 0; i < judgeCaseList.size(); i++) {
-            JudgeCase judgeCase = judgeCaseList.get(i);
-            if (!judgeCase.getOutput().equals(outputList.get(i))) {
-                judgeInfoMessageEnum = JudgeInfoMessageEnum.WRONG_ANSWER;
-                judgeInfoResponse.setMessage(judgeInfoMessageEnum.getValue());
-                return judgeInfoResponse;
-            }
-        }
-        // 判断题目限制
-        String judgeConfigStr = question.getJudgeConfig();
-        JudgeConfig judgeConfig = JSONUtil.toBean(judgeConfigStr, JudgeConfig.class);
-        Long needMemoryLimit = judgeConfig.getMemoryLimit();
-        Long needTimeLimit = judgeConfig.getTimeLimit();
-        if (memory > needMemoryLimit) {
-            judgeInfoMessageEnum = JudgeInfoMessageEnum.MEMORY_LIMIT_EXCEEDED;
-            judgeInfoResponse.setMessage(judgeInfoMessageEnum.getValue());
-            return judgeInfoResponse;
-        }
-        if (time > needTimeLimit) {
-            judgeInfoMessageEnum = JudgeInfoMessageEnum.TIME_LIMIT_EXCEEDED;
-            judgeInfoResponse.setMessage(judgeInfoMessageEnum.getValue());
-            return judgeInfoResponse;
-        }
-        judgeInfoResponse.setMessage(judgeInfoMessageEnum.getValue());
-        return judgeInfoResponse;
+        result.setPassedCaseCount(passed);
+        result.setTotalCaseCount(total);
+        JudgeConfig config = JSONUtil.toBean(context.getQuestion().getJudgeConfig(), JudgeConfig.class);
+        JudgeInfoMessageEnum verdict = JudgeInfoMessageEnum.ACCEPTED;
+        if (execution.getMemory() > config.getMemoryLimit()) verdict = JudgeInfoMessageEnum.MEMORY_LIMIT_EXCEEDED;
+        else if (execution.getTime() > config.getTimeLimit()) verdict = JudgeInfoMessageEnum.TIME_LIMIT_EXCEEDED;
+        else if (outputs.size() != total || passed != total) verdict = JudgeInfoMessageEnum.WRONG_ANSWER;
+        result.setMessage(verdict.getValue());
+        return result;
+    }
+    /** Preserve leading spaces and internal blank lines. */
+    public static String normalize(String output) {
+        if (output == null) throw new IllegalStateException("沙箱输出缺失");
+        return output.replace("\r\n", "\n").replace('\r', '\n')
+                .replaceAll("[ \\t]+(?=\\n|$)", "").replaceAll("\\n+$", "");
     }
 }

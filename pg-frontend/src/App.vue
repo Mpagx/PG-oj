@@ -20,21 +20,15 @@ body {
 }
 </style>
 <script setup lang="ts">
-import BasicLayout from "@/layouts/BasicLayout.vue";
 import store from "@/store";
-import { onMounted } from "vue";
+import { defineAsyncComponent, onMounted } from "vue";
 import { useRoute } from "vue-router";
 
 const route = useRoute();
-/**
- * 全局初始化函数，有全局单词调用的代码，都可以写这里
- */
-const doInit = () => {
-  console.log("hello，欢迎来到我的项目");
-};
-
+const BasicLayout = defineAsyncComponent(
+  () => import("@/layouts/BasicLayout.vue")
+);
 onMounted(async () => {
-  await store.dispatch("user/getLoginUser");
-  doInit();
+  if (!store.state.user.initialized) await store.dispatch("user/getLoginUser");
 });
 </script>
