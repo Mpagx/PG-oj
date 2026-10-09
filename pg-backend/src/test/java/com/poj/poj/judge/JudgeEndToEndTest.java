@@ -48,12 +48,13 @@ class JudgeEndToEndTest {
     @Test void createProblemSubmitAndPollAcWaCeTle() throws Exception {
         JSONObject health = get("/code-sandbox/health");
         assertEquals("UP", health.getJSONObject("data").getStr("status"));
-        String account = "e2e_" + UUID.randomUUID().toString().replace("-", "");
+        String account = "e2e_" + UUID.randomUUID().toString().replace("-", "").substring(0, 24);
         long userId = users.userRegister(account, "e2e-password-123", "e2e-password-123");
         User admin = new User(); admin.setId(userId); admin.setUserRole("admin"); users.updateById(admin);
         post("/user/login", Map.of("userName", account, "userPassword", "e2e-password-123"));
         long questionId = post("/question/add", Map.of(
                 "title", "E2E A+B " + account, "content", "Read two longs from stdin and print their sum",
+                "status", "PUBLISHED",
                 "tags", new String[]{"e2e"},
                 "judgeCase", new Object[]{Map.of("input", "1 2", "output", "3"), Map.of("input", "-1 2", "output", "1")},
                 "judgeConfig", Map.of("timeLimit", 1000, "memoryLimit", 262144, "stackLimit", 1024))).getLong("data");
