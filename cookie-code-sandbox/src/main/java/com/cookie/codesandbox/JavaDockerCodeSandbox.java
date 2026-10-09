@@ -191,7 +191,8 @@ public class JavaDockerCodeSandbox implements CodeSandbox {
                     5000L, false);
             if (permissionResult.getExitValue() == null
                     || permissionResult.getExitValue() != 0) {
-                throw new IllegalStateException("无法准备容器代码目录");
+                throw new IllegalStateException("无法准备容器代码目录: "
+                        + permissionResult.getErrorMessage());
             }
         } finally {
             removeContainerQuietly(dockerClient, helperContainerId);
@@ -231,6 +232,13 @@ public class JavaDockerCodeSandbox implements CodeSandbox {
                 .withTmpFs(Collections.singletonMap(
                         "/tmp", "rw,noexec,nosuid,nodev,size=" + tmpSizeMb + "m,mode=1777"));
 
+        // The trusted upload helper only runs chmod. Archives can retain the
+        // Linux host UID, so it needs FOWNER to prepare files owned by that UID.
+        // Compiler and execution containers keep all capabilities dropped.
+        if (user == null) {
+            hostConfig.withCapAdd(Capability.FOWNER);
+        }
+
         com.github.dockerjava.api.command.CreateContainerCmd createCommand =
                 dockerClient.createContainerCmd(image)
                         .withHostConfig(hostConfig)
@@ -243,6 +251,8 @@ public class JavaDockerCodeSandbox implements CodeSandbox {
                         .withCmd("sh", "-c", "while true; do sleep 3600; done");
         if (StrUtil.isNotBlank(user)) {
             createCommand.withUser(user);
+        } else {
+            createCommand.withUser("0:0");
         }
         CreateContainerResponse container = createCommand.exec();
         dockerClient.startContainerCmd(container.getId()).exec();
