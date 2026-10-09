@@ -27,7 +27,7 @@ npm run build
 
 ## 数据库迁移
 
-空数据库由 Flyway 自动执行当前全部迁移（V1–V13）。生产默认启用迁移，禁用 `clean`，禁用自动 baseline。已有数据库接入前：
+空数据库由 Flyway 自动执行当前全部迁移（V1–V14）。生产默认启用迁移，禁用 `clean`，禁用自动 baseline。已有数据库接入前：
 
 1. 用 `deploy/backup.sh` 生成事务一致的备份，复制到异机加密存储并验证恢复。
 2. 核对已有数据库包含 `user`、`question`、`question_submit` 及 V1 的原始业务字段。升级前检查重复登录名：`SELECT userAccount, COUNT(*) FROM user GROUP BY userAccount HAVING COUNT(*) > 1;`。重复数据由管理员确认合并；程序不会删除用户。
@@ -44,7 +44,7 @@ npm run build
 
 Cookie OJ 不同步外部平台题面或测试数据。扩充题库统一使用经过授权或自己编写的 Cookie OJ ZIP 包；导入、沙箱验证和人工发布形成同一套质量流程。
 
-做题页不提供独立评论区。“题解”仅对该题至少有一次 Accepted 的用户和管理员开放，以避免提交前直接查看答案。每位用户每题最多维护一篇 Markdown 题解，可修改或逻辑删除；其他已解题用户可以分页阅读，管理员可以删除不合规题解。题解不包含隐藏测试数据和管理员标准程序。
+做题页不提供独立评论区。“题解”默认对该题至少有一次 Accepted 的用户和管理员开放。未通过的已登录用户也可确认“实在不会，查看题解”，V14 记录这一选择并解锁阅读；发布题解仍需要通过本题。每位用户每题最多维护一篇 Markdown 题解，可修改或逻辑删除；用户可以分页阅读，管理员可以删除不合规题解。题解不包含隐藏测试数据和管理员标准程序。
 
 Java 提交增加基础入口校验：前端拦截纯数字、普通文字、缺少 Main 或 main 的代码；后端用 JDK Java 解析器检查顶层 `public class Main`、类内 `public static void main(String[] args)`，不允许 package 声明。参数也可使用 `String args[]`、`String... args` 或 `java.lang.String[] args`。注释、字符串和嵌套类不能伪造入口。后端只解析声明，不编译、不执行用户代码，也不运行注解处理器；完整编译与执行仍在 Docker 沙箱中完成。入口无效时不创建提交、不增加提交计数、不调用沙箱。类型等编译错误仍产生 CE 结果，提交详情页保留“编译错误”状态但隐藏原黄色编译器诊断条，诊断数据仍保留供排查。
 
@@ -52,7 +52,7 @@ Java 提交增加基础入口校验：前端拦截纯数字、普通文字、缺
 
 ## 邮箱验证与账号恢复
 
-开发环境默认 `EMAIL_ENABLED=false`，此时保留图片验证码注册，但不提供邮件找回。要启用完整流程，配置 `MAIL_HOST`、`MAIL_PORT`、`MAIL_USERNAME`、`MAIL_PASSWORD`、`MAIL_FROM`，设置 `EMAIL_ENABLED=true`，并生成至少 32 字符的随机 `EMAIL_CODE_SECRET`。不要使用邮箱登录密码，应使用邮件服务商提供的 SMTP 应用专用密码。587 端口通常使用 `MAIL_STARTTLS=true`；465 端口通常使用 `MAIL_STARTTLS=false`、`MAIL_SSL_ENABLE=true`，具体以邮件服务商文档为准。
+开发环境默认 `EMAIL_ENABLED=false`，此时邮箱注册和邮件找回不可用，已有用户仍可登录。注册仅校验邮箱验证码，登录保留图片验证码。要启用完整流程，配置 `MAIL_HOST`、`MAIL_PORT`、`MAIL_USERNAME`、`MAIL_PASSWORD`、`MAIL_FROM`，设置 `EMAIL_ENABLED=true`，并生成至少 32 字符的随机 `EMAIL_CODE_SECRET`。不要使用邮箱登录密码，应使用邮件服务商提供的 SMTP 应用专用密码。587 端口通常使用 `MAIL_STARTTLS=true`；465 端口通常使用 `MAIL_STARTTLS=false`、`MAIL_SSL_ENABLE=true`，具体以邮件服务商文档为准。
 
 邮箱验证码有效期 10 分钟、发送冷却 60 秒、验证后立即作废；服务端只保存带密钥的摘要，不记录明文验证码。生产环境强制把验证码状态放入 Redis，并要求 SMTP 和密钥均已配置，否则后端拒绝启动。注册用户验证邮箱；既有用户可在个人主页绑定或更换邮箱；找回密码不会向访客泄露邮箱是否存在。密码修改后，旧 Session 在下一次访问受保护接口时失效。管理员只能向已验证邮箱发送重置码，不能查看或替用户指定新密码。
 
@@ -62,7 +62,7 @@ Java 提交增加基础入口校验：前端拦截纯数字、普通文字、缺
 
 - 后端主机安装 JDK 17、Nginx、MySQL 8 与带密码的 Redis（或使用私网托管实例）。为数据库建立最低业务权限账号，迁移阶段才赋予 DDL 权限。创建 `poj` 用户、`/opt/poj/backend`、`/var/log/poj`，赋予正确所有权。
 - 复制 backend jar 为 `/opt/poj/backend/backend.jar`，前端 dist 为 `/opt/poj/frontend`。将 `deploy/.env.example` 配置为 `/etc/poj/backend.env`，权限 600。不要继续使用示例占位密钥。
-- 判题 VM 安装 Docker、JDK 17；提前拉取 `openjdk:8-alpine`。实际生产应自行维护经过扫描的 Java 执行镜像并固定 digest；沙箱支持 `-Dcodesandbox.docker.image=镜像名`。创建 `poj-sandbox` 用户及 `/var/lib/poj-sandbox`、`/var/log/poj`，复制 sandbox jar 到 `/opt/poj/sandbox/sandbox.jar`。
+- 判题 VM 安装 Docker、JDK 17；新环境使用 `eclipse-temurin:8-jdk-alpine`，不要再拉取已失效的 `openjdk:8-alpine`。CI 已固定可用的镜像 digest，见 `.github/workflows/verify.yml` 的 `SANDBOX_IMAGE`。实际生产应自行维护经过扫描的 Java 执行镜像并固定 digest；沙箱支持 `-Dcodesandbox.docker.image=镜像名`，需要放在 `-jar` 前，也可在 `/etc/poj/sandbox.env` 中设置 `JAVA_TOOL_OPTIONS=-Dcodesandbox.docker.image=镜像名`。旧默认镜像仅兼容已缓存的本地环境。创建 `poj-sandbox` 用户及 `/var/lib/poj-sandbox`、`/var/log/poj`，复制 sandbox jar 到 `/opt/poj/sandbox/sandbox.jar`。
 - 沙箱 VM 将 `deploy/sandbox.env.example` 保存为 `/etc/poj/sandbox.env`，权限 600。HTTP 监听回环地址，Docker 使用 Unix socket，无明文网络 API。
 - 后端和沙箱位于不同主机时，将 `SANDBOX_SSH_TARGET=用户名@沙箱地址` 保存到 `/etc/poj/tunnel.env`；配置专用 SSH 密钥 `/etc/poj/sandbox_ed25519` 和经过人工核验的 `/etc/poj/sandbox_known_hosts`。使用限制为仅转发 `127.0.0.1:8090` 的 SSH 登录账号。
 - 安装对应 systemd 单元：后端主机 `poj-backend.service`、`poj-sandbox-tunnel.service`；判题 VM `poj-sandbox.service`。`systemctl daemon-reload` 后启用服务。模板使用固定路径，按上述布局安装。

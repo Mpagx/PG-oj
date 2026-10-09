@@ -45,7 +45,7 @@ public class QuestionSolutionController {
     @PostMapping("/reveal")
     public BaseResponse<Boolean> reveal(@RequestBody DeleteRequest body,
                                         HttpServletRequest request) {
-        if (body == null || body.getId() <= 0) throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        if (body == null || body.getId() == null || body.getId() <= 0) throw new BusinessException(ErrorCode.PARAMS_ERROR);
         User user = userService.getLoginUser(request);
         return ResultUtils.success(solutionService.reveal(
                 body.getId(), user, userService.isAdmin(request)));
@@ -53,7 +53,7 @@ public class QuestionSolutionController {
 
     @PostMapping("/delete")
     public BaseResponse<Boolean> delete(@RequestBody DeleteRequest body, HttpServletRequest request) {
-        if (body == null || body.getId() <= 0) throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        if (body == null || body.getId() == null || body.getId() <= 0) throw new BusinessException(ErrorCode.PARAMS_ERROR);
         User user = userService.getLoginUser(request);
         return ResultUtils.success(solutionService.deleteSolution(
                 body.getId(), user, userService.isAdmin(request)));
